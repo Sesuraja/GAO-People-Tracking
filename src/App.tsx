@@ -38,7 +38,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <h1 className="text-4xl font-extrabold tracking-tight text-[#007BC4] leading-none">GAO</h1>
           </div>
-          <span className="text-[10px] tracking-widest text-slate-500 font-semibold mt-1">AI SOLUTIONS</span>
+          <span className="text-[10px] tracking-widest text-slate-500 font-semibold mt-1">People Tracking</span>
         </div>
 
         {/* Global Search */}
