@@ -1,7 +1,6 @@
 import { Person, AIAlert, Zone } from '../lib/simulation';
 import { Card } from '@/components/ui/card';
 import { Users, UserCheck, Activity, ShieldAlert, Clock, Bell, Map, LayoutDashboard, Cpu, ShieldCheck, Radio } from 'lucide-react';
-import LiveFloorMap from './LiveFloorMap';
 import AIFeed from './AIFeed';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useMemo } from 'react';
@@ -56,34 +55,84 @@ export default function DashboardTab({ people, alerts, zones, highlightedPersonI
          <KpiCard title="Avg. Dwell Time" value={`${avgDwellInfo}m`} sub="↗ 5.6% vs yesterday" icon={<Clock className="w-6 h-6 text-white" />} iconColor="bg-[#8b5cf6]" />
       </div>
       
-      {/* Middle Row (Map + Alerts) */}
+      {/* Middle Row (System Overview + Alerts) */}
       <div className="flex flex-col xl:flex-row gap-6 min-h-[450px]">
-        {/* Map */}
+        {/* System Snapshot */}
         <div className="flex-1 bg-white rounded-xl border border-slate-200 p-4 flex flex-col shadow-sm transition hover:shadow-md">
            <div className="flex items-center justify-between mb-4">
              <div className="flex items-center gap-2">
                <div className="w-2 h-2 rounded-full bg-[#10b981]" />
-               <h3 className="font-semibold text-slate-900 tracking-tight">Live Tracking Overview</h3>
+               <h3 className="font-semibold text-slate-900 tracking-tight">Facility Occupancy & Status</h3>
              </div>
              <div className="flex gap-2">
-               <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10b981]"></span> On-Site</span>
-               <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#007BC4]"></span> in Motion</span>
-               <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#8b5cf6]"></span> Authorized</span>
-               <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f59e0b]"></span> Alert</span>
+               <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10b981]"></span> Nominal</span>
+               <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#f59e0b]"></span> Busy</span>
              </div>
            </div>
            
-           <div className="flex flex-1 gap-4 overflow-hidden relative">
-             <div className="w-28 flex flex-col gap-2 border-r border-slate-100 pr-4 overflow-y-auto shrink-0 z-20">
-               <button className="px-3 py-2 text-sm text-left rounded bg-[#007BC4] text-white font-medium shadow-sm shadow-[#007BC4]/20">All Floors</button>
-               <button className="px-3 py-2 text-sm text-left rounded font-medium text-slate-500 hover:text-[#007BC4] hover:bg-slate-50 transition">Floor 4</button>
-               <button className="px-3 py-2 text-sm text-left rounded font-medium text-slate-500 hover:text-[#007BC4] hover:bg-slate-50 transition">Floor 3</button>
-               <button className="px-3 py-2 text-sm text-left rounded font-medium text-slate-500 hover:text-[#007BC4] hover:bg-slate-50 transition">Floor 2</button>
-               <button className="px-3 py-2 text-sm text-left rounded font-medium text-slate-500 hover:text-[#007BC4] hover:bg-slate-50 transition">Floor 1</button>
-               <button className="px-3 py-2 text-sm text-left rounded font-medium text-slate-500 hover:text-[#007BC4] hover:bg-slate-50 transition">Basement</button>
+           <div className="flex flex-1 gap-6">
+             <div className="w-1/3 flex flex-col gap-4 border-r border-slate-100 pr-6 overflow-y-auto shrink-0 z-20">
+               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Device Health</h4>
+               <div className="flex items-center justify-between bg-emerald-50 text-emerald-700 p-3 rounded-lg border border-emerald-100">
+                 <div className="font-semibold text-sm">Main Entrance</div>
+                 <div className="text-xs font-bold uppercase">Online</div>
+               </div>
+               <div className="flex items-center justify-between bg-emerald-50 text-emerald-700 p-3 rounded-lg border border-emerald-100">
+                 <div className="font-semibold text-sm">Lobby Scanner</div>
+                 <div className="text-xs font-bold uppercase">Online</div>
+               </div>
+               <div className="flex items-center justify-between bg-amber-50 text-amber-700 p-3 rounded-lg border border-amber-100">
+                 <div className="font-semibold text-sm">Server Rm Door</div>
+                 <div className="text-xs font-bold uppercase">Warning</div>
+               </div>
+               <div className="flex items-center justify-between bg-emerald-50 text-emerald-700 p-3 rounded-lg border border-emerald-100">
+                 <div className="font-semibold text-sm">Loading Dock</div>
+                 <div className="text-xs font-bold uppercase">Online</div>
+               </div>
+               <button className="text-xs font-bold text-[#007BC4] uppercase text-left hover:underline mt-2">View all devices →</button>
              </div>
-             <div className="flex-1 relative bg-slate-50 rounded-lg overflow-hidden border border-slate-200 shadow-inner">
-               <LiveFloorMap people={people} zones={zones} highlightedPersonId={highlightedPersonId} />
+             
+             <div className="flex-1 flex flex-col bg-slate-50 rounded-lg p-5 overflow-hidden border border-slate-200 shadow-inner overflow-y-auto">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Live Zone Occupancy Distribution</h4>
+                <div className="flex flex-col gap-3">
+                   {Object.keys(zones).map(z => {
+                      const count = people.filter(p => p.currentZone === z).length;
+                      const percent = Math.round((count / Math.max(people.length, 1)) * 100);
+                      return (
+                         <div key={z} className="flex items-center gap-4 bg-white p-3 rounded-lg shadow-sm border border-slate-100">
+                            <div className="font-bold text-slate-700 w-32 text-sm">{z}</div>
+                            <div className="flex-1 bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                               <div className={`h-full rounded-full transition-all duration-500 ${percent > 40 ? 'bg-[#f59e0b]' : 'bg-[#007BC4]'}`} style={{ width: `${Math.max(percent, 2)}%` }}></div>
+                            </div>
+                            <div className="w-12 text-right">
+                              <span className="font-black text-slate-900">{count}</span>
+                              <span className="text-[10px] text-slate-400 ml-1">pax</span>
+                            </div>
+                         </div>
+                      )
+                   })}
+                </div>
+                
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 mt-6">Recent Movement Log</h4>
+                <div className="flex flex-col gap-2">
+                   {people.slice(0, 3).map(p => (
+                     <div key={p.id} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm border border-slate-100">
+                        <div className="flex items-center gap-3">
+                           <div className="w-8 h-8 rounded bg-[#007BC4]/10 text-[#007BC4] flex items-center justify-center font-bold text-sm border border-[#007BC4]/20">{p.name.charAt(0)}</div>
+                           <div>
+                             <div className="font-bold text-sm text-slate-800">{p.name}</div>
+                             <div className="text-[10px] text-slate-500 font-medium uppercase">{p.role}</div>
+                           </div>
+                        </div>
+                        <div className="flex flex-col items-end">
+                           <div className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {p.currentZone}
+                           </div>
+                           <div className="text-[10px] text-slate-400 font-mono mt-0.5">Dwell: {Math.floor(p.dwellTime/60)}m {p.dwellTime%60}s</div>
+                        </div>
+                     </div>
+                   ))}
+                </div>
              </div>
            </div>
         </div>
