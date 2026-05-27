@@ -1,0 +1,6 @@
+{
+  "name": "Nexus AIoT Dashboard",
+  "description": "Enterprise-grade real-time RFID tracking and AI intelligence dashboard for facility monitoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
