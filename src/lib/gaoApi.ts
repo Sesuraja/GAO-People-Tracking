@@ -1,4 +1,4 @@
-export const DEFAULT_HOST = 'https://www.i360services.com/peopletrackinguhf';
+export const DEFAULT_HOST = '';
 
 export interface HistoryRecord {
   TagID: string;

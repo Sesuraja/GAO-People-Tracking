@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { gaoApi, RealtimeTag } from './gaoApi';
+import { db } from './firebase';
+import { collection, addDoc, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 
 export type Zone = 'Entrance' | 'Office' | 'Meeting Room' | 'Server Room' | 'Cafeteria';
 export type PresenceState = 'MOVING' | 'IDLE' | 'EXITED';
@@ -18,7 +20,7 @@ export interface Person {
 }
 
 export interface AIAlert {
-  id: string;
+  id?: string;
   type: 'security' | 'warning' | 'info';
   message: string;
   timestamp: Date;
@@ -30,28 +32,30 @@ const ZONES: Record<string, { x: number; y: number; width: number; height: numbe
   'Meeting Room': { x: 40, y: 10, width: 30, height: 20 },
   'Server Room': { x: 80, y: 10, width: 10, height: 20 },
   'Cafeteria': { x: 10, y: 10, width: 20, height: 40 },
-  'Zone1': { x: 10, y: 80, width: 20, height: 15 }, // Fallback mappings for API zones
+  'Zone1': { x: 10, y: 80, width: 20, height: 15 },
   'd6': { x: 40, y: 10, width: 30, height: 20 },
   'd8': { x: 10, y: 10, width: 20, height: 40 }
 };
 
-const INITIAL_PEOPLE: Person[] = [
-  { id: 'EMP_1001', name: 'John Doe', role: 'Employee', currentZone: 'Office', presenceState: 'IDLE', dwellTime: 400, x: 50, y: 50, lastSeen: new Date(), trail: [] },
-  { id: 'EMP_1002', name: 'Jane Smith', role: 'Employee', currentZone: 'Meeting Room', presenceState: 'IDLE', dwellTime: 600, x: 55, y: 20, lastSeen: new Date(), trail: [] },
-  { id: 'VIS_001', name: 'Alice (Visitor)', role: 'Visitor', currentZone: 'Entrance', presenceState: 'MOVING', dwellTime: 20, x: 15, y: 85, lastSeen: new Date(), trail: [] },
-  { id: 'EMP_1003', name: 'Bob Tech', role: 'Employee', currentZone: 'Server Room', presenceState: 'IDLE', dwellTime: 1200, x: 85, y: 15, lastSeen: new Date(), trail: [] },
-  { id: 'EMP_1004', name: 'Sarah Connor', role: 'Security', currentZone: 'Office', presenceState: 'MOVING', dwellTime: 100, x: 70, y: 55, lastSeen: new Date(), trail: [] },
-  { id: 'EMP_1005', name: 'James Wilson', role: 'Employee', currentZone: 'Cafeteria', presenceState: 'MOVING', dwellTime: 300, x: 20, y: 30, lastSeen: new Date(), trail: [] },
-  { id: 'VIS_002', name: 'Mark (Contractor)', role: 'Visitor', currentZone: 'Meeting Room', presenceState: 'IDLE', dwellTime: 800, x: 50, y: 15, lastSeen: new Date(), trail: [] },
-  { id: 'SEC_001', name: 'David (Patrol)', role: 'Security', currentZone: 'Entrance', presenceState: 'MOVING', dwellTime: 40, x: 12, y: 80, lastSeen: new Date(), trail: [] },
-  { id: 'EMP_1006', name: 'Emily Chen', role: 'Employee', currentZone: 'Office', presenceState: 'IDLE', dwellTime: 2500, x: 60, y: 60, lastSeen: new Date(), trail: [] },
-];
-
 export function useSimulation() {
-  const [people, setPeople] = useState<Person[]>(INITIAL_PEOPLE);
-  const [alerts, setAlerts] = useState<AIAlert[]>([
-    { id: 'start', type: 'info', message: 'AI Intelligence engine initialized. Monitoring 5 active tags.', timestamp: new Date() }
-  ]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [alerts, setAlerts] = useState<AIAlert[]>([]);
+
+  useEffect(() => {
+    // Listen to Firebase alerts
+    const alertsQuery = query(collection(db, 'alerts'), orderBy('timestamp', 'desc'), limit(15));
+    const unsubscribe = onSnapshot(alertsQuery, (snapshot) => {
+      const dbAlerts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate() || new Date()
+      })) as AIAlert[];
+      setAlerts(dbAlerts);
+    }, (error) => {
+       console.error('Firestore Error sync alerts:', error);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -69,46 +73,43 @@ export function useSimulation() {
       const latestTagInfo: Record<string, RealtimeTag> = {};
       tags.forEach(t => {
          if (!latestTagInfo[t.TagID]) {
-             latestTagInfo[t.TagID] = t; // Since data is descending, first is newest
+             latestTagInfo[t.TagID] = t;
          }
       });
 
       setPeople((prev) => {
         const nextPeople = [...prev];
-        let newAlerts: AIAlert[] = [];
 
-        // 1. Process API data
+        // Process pure real API data, skip if no data
+        if (tags.length === 0) return nextPeople;
+
         Object.values(latestTagInfo).forEach(tag => {
            let p = nextPeople.find(x => x.id === tag.TagID);
            let targetZone = tag.Location;
            
-           if (!ZONES[targetZone]) {
-              // If unknown zone, we just pick Entrance
-              targetZone = 'Entrance'; 
-           }
+           if (!ZONES[targetZone]) targetZone = 'Entrance'; 
 
            if (!p) {
-               // New tag detected
                p = {
                  id: tag.TagID,
                  name: `Tag ${tag.TagID.substring(0, 6).toUpperCase()}`,
-                 role: 'Visitor', // Default to visitor if unknown mapping
+                 role: 'Visitor',
                  currentZone: targetZone,
                  presenceState: 'IDLE',
                  dwellTime: 0,
-                 x: Math.min(100, Math.max(0, ZONES[targetZone].x + Math.random() * ZONES[targetZone].width)),
-                 y: Math.min(100, Math.max(0, ZONES[targetZone].y + Math.random() * ZONES[targetZone].height)),
+                 x: ZONES[targetZone].x + ZONES[targetZone].width / 2,
+                 y: ZONES[targetZone].y + ZONES[targetZone].height / 2,
                  lastSeen: new Date(tag.Timestamp + "Z"),
                  trail: []
                };
                nextPeople.push(p);
 
-               newAlerts.push({
-                   id: `alert_new_${Date.now()}_${tag.TagID.substr(0,4)}`,
+               addDoc(collection(db, 'alerts'), {
                    type: 'info',
-                   message: `System found new tag: ${tag.TagID.substring(0, 8)} at ${tag.Location}`,
+                   message: `System tracked new tag: ${tag.TagID.substring(0, 8)} at ${tag.Location}`,
                    timestamp: new Date()
-               });
+               }).catch(e => console.error("Firebase write error:", e));
+
            } else {
                p.lastSeen = new Date(tag.Timestamp + "Z");
                if (p.currentZone !== targetZone) {
@@ -116,48 +117,29 @@ export function useSimulation() {
                    p.dwellTime = 0;
                    p.presenceState = 'MOVING';
                    
+                   // Move avatar to center of new zone
+                   p.x = ZONES[targetZone].x + ZONES[targetZone].width / 2;
+                   p.y = ZONES[targetZone].y + ZONES[targetZone].height / 2;
+                   
                    if (p.role === 'Visitor' && targetZone === 'Server Room') {
-                      newAlerts.push({
-                        id: `alert_sec_${Date.now()}_${p.id}`,
+                      addDoc(collection(db, 'alerts'), {
                         type: 'security',
-                        message: `UNAUTHORIZED ACCESS: ${p.name} entered Server Room via API`,
+                        message: `UNAUTHORIZED ACCESS: ${p.name} entered Server Room`,
                         timestamp: new Date()
-                      });
+                      }).catch(console.error);
                    }
                }
            }
         });
 
-        // 2. Perform local simulation
+        // Add dwell time logic and minor visual wander so they don't overlap completely
         nextPeople.forEach(p => {
           p.dwellTime += 2; 
+
+          p.trail = p.trail || [];
           p.trail.push({ x: p.x, y: p.y });
           if (p.trail.length > 15) p.trail.shift();
 
-          // Only apply random zone jumps to local mocked data that don't have api updates
-          if (!latestTagInfo[p.id]) {
-             if (Math.random() < 0.05) { 
-               const builtinZones = ['Entrance', 'Office', 'Meeting Room', 'Server Room', 'Cafeteria'];
-               const newZone = builtinZones[Math.floor(Math.random() * builtinZones.length)];
-               
-               if (p.currentZone !== newZone) {
-                 p.currentZone = newZone;
-                 p.dwellTime = 0;
-                 p.presenceState = 'MOVING';
-                 
-                 if (p.role === 'Visitor' && newZone === 'Server Room') {
-                   newAlerts.push({
-                     id: `alert_sec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                     type: 'security',
-                     message: `UNAUTHORIZED ACCESS: ${p.name} entered Server Room`,
-                     timestamp: new Date()
-                   });
-                 }
-               }
-             }
-          }
-
-          // Move randomly within the current assigned zone
           const zoneRect = ZONES[p.currentZone] || ZONES['Entrance'];
           const targetX = zoneRect.x + Math.random() * zoneRect.width;
           const targetY = zoneRect.y + Math.random() * zoneRect.height;
@@ -172,24 +154,18 @@ export function useSimulation() {
           }
 
           if (p.currentZone === 'Server Room' && p.dwellTime > 1205 && p.dwellTime < 1210) {
-             newAlerts.push({
-               id: `alert_time_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+             addDoc(collection(db, 'alerts'), {
                type: 'warning',
                message: `LOITERING DETECTED: ${p.name} in Server Room for over 20 minutes`,
                timestamp: new Date()
-             });
+             }).catch(console.error);
           }
         });
-
-        if (newAlerts.length > 0) {
-           setAlerts(prevA => [...newAlerts, ...prevA].slice(0, 15));
-        }
 
         return nextPeople;
       });
     };
 
-    // Run interval
     const interval = setInterval(tick, 2000);
     return () => {
       isMounted = false;
@@ -199,3 +175,4 @@ export function useSimulation() {
 
   return { people, alerts, ZONES };
 }
+
