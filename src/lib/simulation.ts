@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { gaoApi, RealtimeTag } from './gaoApi';
 
 export type Zone = 'Entrance' | 'Office' | 'Meeting Room' | 'Server Room' | 'Cafeteria';
 export type PresenceState = 'MOVING' | 'IDLE' | 'EXITED';
@@ -7,7 +8,7 @@ export interface Person {
   id: string;
   name: string;
   role: 'Employee' | 'Visitor' | 'Security';
-  currentZone: Zone;
+  currentZone: string;
   presenceState: PresenceState;
   dwellTime: number; // in seconds
   x: number; // coordinates for the live map (0-100%)
@@ -23,12 +24,15 @@ export interface AIAlert {
   timestamp: Date;
 }
 
-const ZONES: Record<Zone, { x: number; y: number; width: number; height: number }> = {
+const ZONES: Record<string, { x: number; y: number; width: number; height: number }> = {
   'Entrance': { x: 10, y: 80, width: 20, height: 15 },
   'Office': { x: 40, y: 40, width: 50, height: 30 },
   'Meeting Room': { x: 40, y: 10, width: 30, height: 20 },
   'Server Room': { x: 80, y: 10, width: 10, height: 20 },
   'Cafeteria': { x: 10, y: 10, width: 20, height: 40 },
+  'Zone1': { x: 10, y: 80, width: 20, height: 15 }, // Fallback mappings for API zones
+  'd6': { x: 40, y: 10, width: 30, height: 20 },
+  'd8': { x: 10, y: 10, width: 20, height: 40 }
 };
 
 const INITIAL_PEOPLE: Person[] = [
@@ -50,46 +54,114 @@ export function useSimulation() {
   ]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    let isMounted = true;
+
+    const tick = async () => {
+      let tags: RealtimeTag[] = [];
+      try {
+        tags = await gaoApi.getTagsInRealtime();
+      } catch (err) {
+        console.error('Failed to fetch real-time tags from GAO API', err);
+      }
+
+      if (!isMounted) return;
+
+      const latestTagInfo: Record<string, RealtimeTag> = {};
+      tags.forEach(t => {
+         if (!latestTagInfo[t.TagID]) {
+             latestTagInfo[t.TagID] = t; // Since data is descending, first is newest
+         }
+      });
+
       setPeople((prev) => {
         const nextPeople = [...prev];
         let newAlerts: AIAlert[] = [];
 
-        nextPeople.forEach(p => {
-          // Increment dwell time
-          p.dwellTime += 2; 
+        // 1. Process API data
+        Object.values(latestTagInfo).forEach(tag => {
+           let p = nextPeople.find(x => x.id === tag.TagID);
+           let targetZone = tag.Location;
+           
+           if (!ZONES[targetZone]) {
+              // If unknown zone, we just pick Entrance
+              targetZone = 'Entrance'; 
+           }
 
+           if (!p) {
+               // New tag detected
+               p = {
+                 id: tag.TagID,
+                 name: `Tag ${tag.TagID.substring(0, 6).toUpperCase()}`,
+                 role: 'Visitor', // Default to visitor if unknown mapping
+                 currentZone: targetZone,
+                 presenceState: 'IDLE',
+                 dwellTime: 0,
+                 x: Math.min(100, Math.max(0, ZONES[targetZone].x + Math.random() * ZONES[targetZone].width)),
+                 y: Math.min(100, Math.max(0, ZONES[targetZone].y + Math.random() * ZONES[targetZone].height)),
+                 lastSeen: new Date(tag.Timestamp + "Z"),
+                 trail: []
+               };
+               nextPeople.push(p);
+
+               newAlerts.push({
+                   id: `alert_new_${Date.now()}_${tag.TagID.substr(0,4)}`,
+                   type: 'info',
+                   message: `System found new tag: ${tag.TagID.substring(0, 8)} at ${tag.Location}`,
+                   timestamp: new Date()
+               });
+           } else {
+               p.lastSeen = new Date(tag.Timestamp + "Z");
+               if (p.currentZone !== targetZone) {
+                   p.currentZone = targetZone;
+                   p.dwellTime = 0;
+                   p.presenceState = 'MOVING';
+                   
+                   if (p.role === 'Visitor' && targetZone === 'Server Room') {
+                      newAlerts.push({
+                        id: `alert_sec_${Date.now()}_${p.id}`,
+                        type: 'security',
+                        message: `UNAUTHORIZED ACCESS: ${p.name} entered Server Room via API`,
+                        timestamp: new Date()
+                      });
+                   }
+               }
+           }
+        });
+
+        // 2. Perform local simulation
+        nextPeople.forEach(p => {
+          p.dwellTime += 2; 
           p.trail.push({ x: p.x, y: p.y });
           if (p.trail.length > 15) p.trail.shift();
 
-          // Logic to wander around within their zone, or occasionally change zone
-          if (Math.random() < 0.05) { // 5% chance to change zone
-            const zonesList = Object.keys(ZONES) as Zone[];
-            const newZone = zonesList[Math.floor(Math.random() * zonesList.length)];
-            
-            if (p.currentZone !== newZone) {
-               p.currentZone = newZone;
-               p.dwellTime = 0;
-               p.presenceState = 'MOVING';
+          // Only apply random zone jumps to local mocked data that don't have api updates
+          if (!latestTagInfo[p.id]) {
+             if (Math.random() < 0.05) { 
+               const builtinZones = ['Entrance', 'Office', 'Meeting Room', 'Server Room', 'Cafeteria'];
+               const newZone = builtinZones[Math.floor(Math.random() * builtinZones.length)];
                
-               // Alert if visitor enters server room
-               if (p.role === 'Visitor' && newZone === 'Server Room') {
-                 newAlerts.push({
-                   id: `alert_sec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                   type: 'security',
-                   message: `UNAUTHORIZED ACCESS: ${p.name} entered Server Room`,
-                   timestamp: new Date()
-                 });
+               if (p.currentZone !== newZone) {
+                 p.currentZone = newZone;
+                 p.dwellTime = 0;
+                 p.presenceState = 'MOVING';
+                 
+                 if (p.role === 'Visitor' && newZone === 'Server Room') {
+                   newAlerts.push({
+                     id: `alert_sec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                     type: 'security',
+                     message: `UNAUTHORIZED ACCESS: ${p.name} entered Server Room`,
+                     timestamp: new Date()
+                   });
+                 }
                }
-            }
+             }
           }
 
-          // Move randomly within the zone
-          const zoneRect = ZONES[p.currentZone];
+          // Move randomly within the current assigned zone
+          const zoneRect = ZONES[p.currentZone] || ZONES['Entrance'];
           const targetX = zoneRect.x + Math.random() * zoneRect.width;
           const targetY = zoneRect.y + Math.random() * zoneRect.height;
           
-          // Interpolate current pos towards target
           p.x += (targetX - p.x) * 0.1;
           p.y += (targetY - p.y) * 0.1;
 
@@ -99,26 +171,30 @@ export function useSimulation() {
              p.presenceState = 'MOVING';
           }
 
-          // Rule based loitering detection
           if (p.currentZone === 'Server Room' && p.dwellTime > 1205 && p.dwellTime < 1210) {
-            newAlerts.push({
-              id: `alert_time_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              type: 'warning',
-              message: `LOITERING DETECTED: ${p.name} in Server Room for over 20 minutes`,
-              timestamp: new Date()
-            });
+             newAlerts.push({
+               id: `alert_time_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+               type: 'warning',
+               message: `LOITERING DETECTED: ${p.name} in Server Room for over 20 minutes`,
+               timestamp: new Date()
+             });
           }
         });
 
         if (newAlerts.length > 0) {
-          setAlerts(prevA => [...newAlerts, ...prevA].slice(0, 15)); // Keep last 15
+           setAlerts(prevA => [...newAlerts, ...prevA].slice(0, 15));
         }
 
         return nextPeople;
       });
-    }, 2000); // Poll every 2 seconds to simulate MQTT websocket interval
+    };
 
-    return () => clearInterval(interval);
+    // Run interval
+    const interval = setInterval(tick, 2000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   return { people, alerts, ZONES };

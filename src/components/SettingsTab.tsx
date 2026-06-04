@@ -1,18 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Save, Bell, Shield, Network, Database, Users, Layout, Key } from 'lucide-react';
+import { gaoApi, DEFAULT_HOST } from '../lib/gaoApi';
 
 export default function SettingsTab() {
   const [activeSection, setActiveSection] = useState('general');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+  const [apiUrl, setApiUrl] = useState(DEFAULT_HOST);
 
-  const handleTestConnection = () => {
+  useEffect(() => {
+    const savedUrl = localStorage.getItem('gao_api_url');
+    if (savedUrl) {
+      setApiUrl(savedUrl);
+      gaoApi.setHost(savedUrl);
+    }
+  }, []);
+
+  const handleSaveApiUrl = () => {
+     localStorage.setItem('gao_api_url', apiUrl);
+     gaoApi.setHost(apiUrl);
+     // Note: also should show a brief success message in a real app
+  };
+
+  const handleTestConnection = async () => {
     setIsTesting(true);
     setTestResult(null);
-    setTimeout(() => {
-      setIsTesting(false);
+    gaoApi.setHost(apiUrl); // Test the current input
+    try {
+      const count = await gaoApi.getHistoryTotalCount();
+      // If we got back a number (even 0), we assume success
       setTestResult('success');
-    }, 1500);
+    } catch (e) {
+      setTestResult('error');
+    } finally {
+      setIsTesting(false);
+    }
   };
 
   return (
@@ -145,7 +167,13 @@ export default function SettingsTab() {
                      </div>
                      <div className="p-6">
                         <label className="block text-sm font-bold text-slate-700 mb-2">External API Endpoint URL</label>
-                        <input type="url" placeholder="https://api.example.com/v1" defaultValue="https://api.gaosystems.com/v1/sync" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition font-mono text-sm" />
+                        <input 
+                           type="url" 
+                           placeholder="https://api.example.com/v1" 
+                           value={apiUrl} 
+                           onChange={e => setApiUrl(e.target.value)}
+                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition font-mono text-sm" 
+                        />
                      </div>
                      <div className="p-6">
                         <label className="block text-sm font-bold text-slate-700 mb-2">API Key</label>
@@ -178,7 +206,7 @@ export default function SettingsTab() {
                               <><Network className="w-4 h-4" /> Test Connection</>
                            )}
                         </button>
-                        <button className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md transition">
+                        <button onClick={handleSaveApiUrl} className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md transition">
                            <Save className="w-4 h-4" /> Save Configuration
                         </button>
                      </div>
