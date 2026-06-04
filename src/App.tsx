@@ -28,7 +28,7 @@ export default function App() {
 }
 
 function AppContent() {
-  const { people, alerts, ZONES } = useSimulation();
+  const { people, alerts, ZONES, isLoading } = useSimulation();
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedPersonId, setHighlightedPersonId] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -127,12 +127,12 @@ function AppContent() {
         <div className="flex-1 overflow-hidden relative">
           <div className="absolute inset-0 flex flex-col">
             <Routes>
-              <Route path="/" element={<DashboardTab people={people} alerts={alerts} zones={ZONES} highlightedPersonId={highlightedPersonId} />} />
-              <Route path="/live" element={<LiveTrackingTab people={people} zones={ZONES} highlightedPersonId={highlightedPersonId} />} />
+                <Route path="/" element={<DashboardTab people={people} alerts={alerts} zones={ZONES} highlightedPersonId={highlightedPersonId} isLoading={isLoading} />} />
+              <Route path="/live" element={<LiveTrackingTab people={people} zones={ZONES} highlightedPersonId={highlightedPersonId} isLoading={isLoading} />} />
               <Route path="/playback" element={<PlaybackTab people={people} zones={ZONES} />} />
               <Route path="/people" element={<PeopleTab people={people} />} />
               <Route path="/alerts" element={<AlertsTab alerts={alerts} />} />
-              <Route path="/analytics" element={<AnalyticsTab people={people} />} />
+              <Route path="/analytics" element={<AnalyticsTab people={people} isLoading={isLoading} />} />
               <Route path="/devices" element={<DevicesTab />} />
               <Route path="/settings" element={<SettingsTab />} />
             </Routes>

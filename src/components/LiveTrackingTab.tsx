@@ -4,11 +4,11 @@ import LiveFloorMap from './LiveFloorMap';
 import { useGaoRealtime } from '../lib/useGaoApi';
 import { Radio, MapPin, Clock } from 'lucide-react';
 
-export default function LiveTrackingTab({ people, zones, highlightedPersonId }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null }) {
+export default function LiveTrackingTab({ people, zones, highlightedPersonId, isLoading: mainIsLoading }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, isLoading?: boolean }) {
   const [selectedPerson, setSelectedPerson] = useState<string | null>(highlightedPersonId || null);
   
   // Real-time data from API
-  const { tags, error, isLoading } = useGaoRealtime(2000);
+  const { tags, error, isLoading: feedIsLoading } = useGaoRealtime(2000);
 
   return (
     <div className="flex-1 flex flex-col lg:flex-row p-6 gap-6 bg-slate-50 min-h-0 h-full">
@@ -20,7 +20,16 @@ export default function LiveTrackingTab({ people, zones, highlightedPersonId }: 
           </div>
         </div>
         <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm p-4 relative flex flex-col min-h-0">
-           <LiveFloorMap people={people} zones={zones} highlightedPersonId={selectedPerson || highlightedPersonId} />
+           {mainIsLoading ? (
+             <div className="flex-1 flex items-center justify-center">
+               <div className="flex flex-col items-center gap-4 animate-pulse">
+                 <div className="w-12 h-12 rounded-full border-4 border-[#007BC4] border-t-transparent animate-spin"></div>
+                 <div className="text-slate-500 font-medium">Syncing live locations...</div>
+               </div>
+             </div>
+           ) : (
+             <LiveFloorMap people={people} zones={zones} highlightedPersonId={selectedPerson || highlightedPersonId} />
+           )}
         </div>
       </div>
 
@@ -41,7 +50,7 @@ export default function LiveTrackingTab({ people, zones, highlightedPersonId }: 
 
          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-0">
             <div className="overflow-y-auto flex-1 p-4 flex flex-col gap-3">
-               {isLoading && tags.length === 0 && (
+               {feedIsLoading && tags.length === 0 && (
                   <div className="flex items-center justify-center h-full text-slate-500 font-medium">
                      Connecting to Reader...
                   </div>
@@ -68,7 +77,7 @@ export default function LiveTrackingTab({ people, zones, highlightedPersonId }: 
                      </div>
                   </div>
                ))}
-               {!isLoading && !error && tags.length === 0 && (
+               {!feedIsLoading && !error && tags.length === 0 && (
                   <div className="flex items-center justify-center h-full text-slate-500 font-medium">
                      No immediate scans
                   </div>

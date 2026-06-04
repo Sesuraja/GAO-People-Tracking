@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { collection, onSnapshot, query, limit, orderBy } from 'firebase/firestore';
+import { db } from './firebase';
 import { gaoApi, RealtimeTag, HistoryRecord } from './gaoApi';
 
 export function useGaoRealtime(pollingIntervalMs = 2000) {
@@ -9,30 +11,29 @@ export function useGaoRealtime(pollingIntervalMs = 2000) {
   useEffect(() => {
     let isMounted = true;
     
-    const fetchTags = async () => {
-      try {
-        const data = await gaoApi.getTagsInRealtime();
-        if (isMounted) {
-          setTags(data);
-          setError(null);
-        }
-      } catch (err: any) {
-        if (isMounted) {
-          setError(err);
-        }
-      } finally {
-         if (isMounted) setIsLoading(false);
-      }
-    };
-
-    fetchTags(); // Initial fetch
-    const interval = setInterval(fetchTags, pollingIntervalMs);
+    // Listen to live_tags from Firestore
+    const q = query(collection(db, 'live_tags'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!isMounted) return;
+      const data: RealtimeTag[] = [];
+      snapshot.forEach((doc) => {
+        data.push(doc.data() as RealtimeTag);
+      });
+      setTags(data);
+      setIsLoading(false);
+      setError(null);
+    }, (err) => {
+      if (!isMounted) return;
+      console.error(err);
+      setError(new Error(err.message));
+      setIsLoading(false);
+    });
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      unsubscribe();
     };
-  }, [pollingIntervalMs]);
+  }, []);
 
   return { tags, error, isLoading };
 }

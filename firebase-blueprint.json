@@ -34,6 +34,14 @@
         "lastSeen": { "type": "string" }
       },
       "required": ["TagID", "Location", "Timestamp"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "App settings",
+      "type": "object",
+      "properties": {
+        "apiUrl": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -48,6 +56,10 @@
     "/live_tags/{tagId}": {
       "schema": "LiveTag",
       "description": "Currently active tags"
+    },
+    "/settings/{document}": {
+      "schema": "Setting",
+      "description": "App settings"
     }
   }
 }

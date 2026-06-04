@@ -3,11 +3,11 @@ import { Card } from '@/components/ui/card';
 import { Users, UserCheck, Activity, ShieldAlert, Clock, Bell, Map, LayoutDashboard, Cpu, ShieldCheck, Radio } from 'lucide-react';
 import AIFeed from './AIFeed';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
-import { useMemo } from 'react';
+import { useMemo, ReactNode } from 'react';
 
 const COLORS = ['#007BC4', '#38bdf8', '#10b981', '#f59e0b', '#8b5cf6'];
 
-export default function DashboardTab({ people, alerts, zones, highlightedPersonId }: { people: Person[], alerts: AIAlert[], zones: any, highlightedPersonId?: string | null }) {
+export default function DashboardTab({ people, alerts, zones, highlightedPersonId, isLoading }: { people: Person[], alerts: AIAlert[], zones: any, highlightedPersonId?: string | null, isLoading?: boolean }) {
   const movingCount = people.filter(p => p.presenceState === 'MOVING').length;
   const restrictedAlertsCount = alerts.filter(a => a.type === 'security').length;
   const avgDwellInfo = people.length > 0 ? (people.reduce((sum, p) => sum + p.dwellTime, 0) / people.length / 60).toFixed(1) : "0.0";
@@ -43,6 +43,17 @@ export default function DashboardTab({ people, alerts, zones, highlightedPersonI
     { name: 'Offline', value: 5, color: '#f43f5e' },
     { name: 'Warning', value: 3, color: '#f59e0b' }
   ];
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 p-4 md:p-6 lg:p-8 flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4 animate-pulse">
+           <div className="w-12 h-12 rounded-full border-4 border-[#007BC4] border-t-transparent animate-spin"></div>
+           <div className="text-slate-500 font-medium tracking-wide">Syncing real-time data from Firestore...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6 bg-slate-50 min-h-0">
@@ -291,7 +302,7 @@ export default function DashboardTab({ people, alerts, zones, highlightedPersonI
   );
 }
 
-function KpiCard({ title, value, sub, icon, iconColor }: { title: string, value: string, sub: string, icon: React.ReactNode, iconColor: string }) {
+function KpiCard({ title, value, sub, icon, iconColor }: { title: string, value: string, sub: string, icon: ReactNode, iconColor: string }) {
   const isUp = sub.includes('↗');
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4 transition hover:shadow-md">
@@ -307,7 +318,7 @@ function KpiCard({ title, value, sub, icon, iconColor }: { title: string, value:
   );
 }
 
-function FooterCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
+function FooterCard({ icon, title, desc }: { icon: ReactNode, title: string, desc: string }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 mb-2 flex items-start gap-3 transition hover:shadow-md border-t-2 border-t-[#007BC4]/20">
        <div className="p-2 bg-slate-50 rounded-lg border border-slate-100/50 text-[#007BC4]">

@@ -40,6 +40,7 @@ const ZONES: Record<string, { x: number; y: number; width: number; height: numbe
 export function useSimulation() {
   const [people, setPeople] = useState<Person[]>([]);
   const [alerts, setAlerts] = useState<AIAlert[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Listen to Firebase alerts
@@ -64,6 +65,7 @@ export function useSimulation() {
     const tagsQuery = query(collection(db, 'live_tags'));
     const unsubscribeTags = onSnapshot(tagsQuery, (snapshot) => {
       if (!isMounted) return;
+      setIsLoading(false);
 
       const latestTagInfo: Record<string, any> = {};
       snapshot.forEach(doc => {
@@ -179,6 +181,6 @@ export function useSimulation() {
     };
   }, []);
 
-  return { people, alerts, ZONES };
+  return { people, alerts, ZONES, isLoading };
 }
 

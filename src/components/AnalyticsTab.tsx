@@ -6,7 +6,7 @@ import { Network, ActivitySquare, LayoutGrid } from 'lucide-react';
 
 const COLORS = ['#6366f1', '#38bdf8', '#10b981', '#f59e0b', '#f43f5e'];
 
-export default function AnalyticsTab({ people }: { people: Person[] }) {
+export default function AnalyticsTab({ people, isLoading }: { people: Person[], isLoading?: boolean }) {
   // Aggregate data
   const zoneData = useMemo(() => {
     const counts = people.reduce((acc, p) => {
@@ -46,6 +46,17 @@ export default function AnalyticsTab({ people }: { people: Person[] }) {
     base.push({ time: new Date().toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' }), load: Object.keys(zoneData).reduce((s, z) => s + (zoneData as any)[z]?.occupancy || 0, 20) + (Math.random() * 5) });
     return base;
   }, [zoneData]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col w-full h-full p-6 items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4 animate-pulse">
+           <div className="w-12 h-12 rounded-full border-4 border-[#007BC4] border-t-transparent animate-spin"></div>
+           <div className="text-slate-500 font-medium">Loading analytics history...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col w-full h-full p-6 overflow-auto gap-6 bg-slate-50">
