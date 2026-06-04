@@ -1,25 +1,54 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Bell, Shield, Network, Database, Users, Layout, Key } from 'lucide-react';
 import { gaoApi, DEFAULT_HOST } from '../lib/gaoApi';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export default function SettingsTab() {
   const [activeSection, setActiveSection] = useState('general');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [apiUrl, setApiUrl] = useState(DEFAULT_HOST);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const savedUrl = localStorage.getItem('gao_api_url');
-    if (savedUrl) {
-      setApiUrl(savedUrl);
-      gaoApi.setHost(savedUrl);
-    }
+    const fetchSettings = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'global');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.apiUrl) {
+            setApiUrl(data.apiUrl);
+            gaoApi.setHost(data.apiUrl);
+          }
+        } else {
+          // Check local storage as a fallback initially if settings doesn't exist
+          const savedUrl = localStorage.getItem('gao_api_url');
+          if (savedUrl) {
+            setApiUrl(savedUrl);
+            gaoApi.setHost(savedUrl);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching settings:', err);
+      }
+    };
+    fetchSettings();
   }, []);
 
-  const handleSaveApiUrl = () => {
-     localStorage.setItem('gao_api_url', apiUrl);
-     gaoApi.setHost(apiUrl);
-     // Note: also should show a brief success message in a real app
+  const handleSaveApiUrl = async () => {
+    setIsSaving(true);
+    try {
+      await setDoc(doc(db, 'settings', 'global'), { apiUrl }, { merge: true });
+      localStorage.setItem('gao_api_url', apiUrl); // Backup to raw storage
+      gaoApi.setHost(apiUrl);
+      setTestResult(null);
+    } catch (e) {
+      console.error('Failed to save settings to DB:', e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleTestConnection = async () => {
@@ -206,8 +235,13 @@ export default function SettingsTab() {
                               <><Network className="w-4 h-4" /> Test Connection</>
                            )}
                         </button>
-                        <button onClick={handleSaveApiUrl} className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md transition">
-                           <Save className="w-4 h-4" /> Save Configuration
+                        <button 
+                           onClick={handleSaveApiUrl} 
+                           disabled={isSaving}
+                           className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md transition disabled:opacity-50"
+                        >
+                           {isSaving ? <Save className="w-4 h-4 animate-pulse" /> : <Save className="w-4 h-4" />} 
+                           {isSaving ? 'Saving...' : 'Save Configuration'}
                         </button>
                      </div>
                   </div>

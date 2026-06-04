@@ -5,6 +5,7 @@
 
 import { motion } from 'motion/react';
 import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useSimulation } from './lib/simulation';
 import { Activity, Bell, Map, Users, BarChart3, Settings, ShieldAlert, Cpu, LayoutDashboard, Radio, PlayCircle, Search } from 'lucide-react';
 import TopBar from './components/TopBar';
@@ -19,11 +20,20 @@ import SettingsTab from './components/SettingsTab';
 import ProfileModal from './components/ProfileModal';
 
 export default function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  );
+}
+
+function AppContent() {
   const { people, alerts, ZONES } = useSimulation();
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedPersonId, setHighlightedPersonId] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  
+  const navigate = useNavigate();
 
   const filteredPeople = searchQuery 
     ? people.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.id.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -64,7 +74,8 @@ export default function App() {
                       key={p.id}
                       onClick={() => {
                           setHighlightedPersonId(p.id);
-                          if (activeTab !== 'dashboard' && activeTab !== 'live') setActiveTab('dashboard');
+                          navigate('/');
+                          setSearchQuery('');
                       }}
                       className={`text-left text-xs p-2 rounded flex justify-between items-center ${highlightedPersonId === p.id ? 'bg-[#007BC4] text-white' : 'text-slate-700 hover:bg-slate-50 hover:text-[#007BC4]'}`}
                     >
@@ -81,14 +92,14 @@ export default function App() {
         </div>
 
         <nav className="flex flex-col gap-1 px-3 flex-1 overflow-y-auto min-h-0">
-          <NavItem icon={<LayoutDashboard size={20}/>} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-          <NavItem icon={<Map size={20}/>} label="Live Tracking" active={activeTab === 'live'} onClick={() => setActiveTab('live')} />
-          <NavItem icon={<PlayCircle size={20}/>} label="Playback History" active={activeTab === 'playback'} onClick={() => setActiveTab('playback')} />
-          <NavItem icon={<Users size={20}/>} label="People" active={activeTab === 'people'} onClick={() => setActiveTab('people')} />
-          <NavItem icon={<Bell size={20}/>} label="Alerts" active={activeTab === 'alerts'} onClick={() => setActiveTab('alerts')} hasNotification={alerts.some(a => a.type === 'security')} />
-          <NavItem icon={<BarChart3 size={20}/>} label="Analytics" active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} />
-          <NavItem icon={<Radio size={20}/>} label="Devices" active={activeTab === 'devices'} onClick={() => setActiveTab('devices')} />
-          <NavItem icon={<Settings size={20}/>} label="Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
+          <NavItem to="/" icon={<LayoutDashboard size={20}/>} label="Dashboard" />
+          <NavItem to="/live" icon={<Map size={20}/>} label="Live Tracking" />
+          <NavItem to="/playback" icon={<PlayCircle size={20}/>} label="Playback History" />
+          <NavItem to="/people" icon={<Users size={20}/>} label="People" />
+          <NavItem to="/alerts" icon={<Bell size={20}/>} label="Alerts" hasNotification={alerts.some(a => a.type === 'security')} />
+          <NavItem to="/analytics" icon={<BarChart3 size={20}/>} label="Analytics" />
+          <NavItem to="/devices" icon={<Radio size={20}/>} label="Devices" />
+          <NavItem to="/settings" icon={<Settings size={20}/>} label="Settings" />
         </nav>
         
         {/* User Profile */}
@@ -114,53 +125,18 @@ export default function App() {
         <TopBar />
         
         <div className="flex-1 overflow-hidden relative">
-          {activeTab === 'dashboard' && (
-            <div className="absolute inset-0 flex flex-col">
-              <DashboardTab people={people} alerts={alerts} zones={ZONES} highlightedPersonId={highlightedPersonId} />
-            </div>
-          )}
-          
-          {activeTab === 'live' && (
-            <div className="absolute inset-0 flex flex-col">
-              <LiveTrackingTab people={people} zones={ZONES} highlightedPersonId={highlightedPersonId} />
-            </div>
-          )}
-
-          {activeTab === 'playback' && (
-             <div className="absolute inset-0 flex flex-col bg-slate-50">
-               <PlaybackTab people={people} zones={ZONES} />
-             </div>
-          )}
-          
-          {activeTab === 'people' && (
-             <div className="absolute inset-0 overflow-auto bg-slate-50">
-               <PeopleTab people={people} />
-             </div>
-          )}
-          
-          {activeTab === 'alerts' && (
-             <div className="absolute inset-0 overflow-auto bg-slate-50">
-               <AlertsTab alerts={alerts} />
-             </div>
-          )}
-          
-          {activeTab === 'analytics' && (
-             <div className="absolute inset-0 overflow-auto bg-slate-50">
-               <AnalyticsTab people={people} />
-             </div>
-          )}
-
-          {activeTab === 'devices' && (
-             <div className="absolute inset-0 overflow-auto bg-slate-50">
-               <DevicesTab />
-             </div>
-          )}
-
-          {activeTab === 'settings' && (
-             <div className="absolute inset-0 overflow-auto bg-slate-50">
-               <SettingsTab />
-             </div>
-          )}
+          <div className="absolute inset-0 flex flex-col">
+            <Routes>
+              <Route path="/" element={<DashboardTab people={people} alerts={alerts} zones={ZONES} highlightedPersonId={highlightedPersonId} />} />
+              <Route path="/live" element={<LiveTrackingTab people={people} zones={ZONES} highlightedPersonId={highlightedPersonId} />} />
+              <Route path="/playback" element={<PlaybackTab people={people} zones={ZONES} />} />
+              <Route path="/people" element={<PeopleTab people={people} />} />
+              <Route path="/alerts" element={<AlertsTab alerts={alerts} />} />
+              <Route path="/analytics" element={<AnalyticsTab people={people} />} />
+              <Route path="/devices" element={<DevicesTab />} />
+              <Route path="/settings" element={<SettingsTab />} />
+            </Routes>
+          </div>
         </div>
       </main>
 
@@ -169,12 +145,12 @@ export default function App() {
   );
 }
 
-function NavItem({ icon, label, active = false, onClick, hasNotification = false }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void, hasNotification?: boolean }) {
+function NavItem({ to, icon, label, hasNotification = false }: { to: string, icon: React.ReactNode, label: string, hasNotification?: boolean }) {
   return (
-    <button 
-      onClick={onClick}
-      className={`relative flex items-center gap-3 w-full px-4 py-3 rounded-lg transition-all duration-200 shrink-0 ${
-        active 
+    <NavLink 
+      to={to}
+      className={({ isActive }) => `relative flex items-center gap-3 w-full px-4 py-3 rounded-lg transition-all duration-200 shrink-0 ${
+        isActive 
           ? 'bg-[#007BC4] text-white shadow-md font-medium' 
           : 'text-slate-600 hover:bg-slate-50 hover:text-[#007BC4]'
       }`}
@@ -187,7 +163,7 @@ function NavItem({ icon, label, active = false, onClick, hasNotification = false
       {hasNotification && (
         <span className="absolute top-1/2 -translate-y-1/2 right-4 w-1.5 h-1.5 bg-rose-500 rounded-full" />
       )}
-    </button>
+    </NavLink>
   );
 }
 

@@ -60,28 +60,23 @@ export function useSimulation() {
   useEffect(() => {
     let isMounted = true;
 
-    const tick = async () => {
-      let tags: RealtimeTag[] = [];
-      try {
-        tags = await gaoApi.getTagsInRealtime();
-      } catch (err) {
-        console.error('Failed to fetch real-time tags from GAO API', err);
-      }
-
+    // Listen to live_tags from Firestore instead of direct API polling!
+    const tagsQuery = query(collection(db, 'live_tags'));
+    const unsubscribeTags = onSnapshot(tagsQuery, (snapshot) => {
       if (!isMounted) return;
 
-      const latestTagInfo: Record<string, RealtimeTag> = {};
-      tags.forEach(t => {
-         if (!latestTagInfo[t.TagID]) {
-             latestTagInfo[t.TagID] = t;
+      const latestTagInfo: Record<string, any> = {};
+      snapshot.forEach(doc => {
+         const data = doc.data();
+         if (data.TagID) {
+           latestTagInfo[data.TagID] = data;
          }
       });
 
       setPeople((prev) => {
         const nextPeople = [...prev];
 
-        // Process pure real API data, skip if no data
-        if (tags.length === 0) return nextPeople;
+        if (Object.keys(latestTagInfo).length === 0) return nextPeople;
 
         Object.values(latestTagInfo).forEach(tag => {
            let p = nextPeople.find(x => x.id === tag.TagID);
@@ -132,6 +127,16 @@ export function useSimulation() {
            }
         });
 
+        return nextPeople;
+      });
+    }, (error) => {
+       console.error("Firestore Error sync tags:", error);
+    });
+
+    const tick = () => {
+      if (!isMounted) return;
+      setPeople((prev) => {
+        const nextPeople = [...prev];
         // Add dwell time logic and minor visual wander so they don't overlap completely
         nextPeople.forEach(p => {
           p.dwellTime += 2; 
@@ -169,6 +174,7 @@ export function useSimulation() {
     const interval = setInterval(tick, 2000);
     return () => {
       isMounted = false;
+      unsubscribeTags();
       clearInterval(interval);
     };
   }, []);
