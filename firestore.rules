@@ -14,5 +14,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+
+    match /live_tags/{tagId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }

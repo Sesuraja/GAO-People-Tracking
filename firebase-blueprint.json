@@ -21,6 +21,19 @@
         "zone": { "type": "string" }
       },
       "required": ["name", "status"]
+    },
+    "LiveTag": {
+      "title": "Live Tag",
+      "description": "Real-time tracking tags",
+      "type": "object",
+      "properties": {
+        "TagID": { "type": "string" },
+        "Location": { "type": "string" },
+        "Timestamp": { "type": "string" },
+        "dwellTime": { "type": "number" },
+        "lastSeen": { "type": "string" }
+      },
+      "required": ["TagID", "Location", "Timestamp"]
     }
   },
   "firestore": {
@@ -31,6 +44,10 @@
     "/devices/{deviceId}": {
       "schema": "Device",
       "description": "Configured reader devices"
+    },
+    "/live_tags/{tagId}": {
+      "schema": "LiveTag",
+      "description": "Currently active tags"
     }
   }
 }
