@@ -4,22 +4,22 @@ import LiveFloorMap from './LiveFloorMap';
 import { useGaoRealtime } from '../lib/useGaoApi';
 import { Radio, MapPin, Clock } from 'lucide-react';
 
-export default function LiveTrackingTab({ isDarkMode, people, zones, highlightedPersonId, isLoading: mainIsLoading }: { isDarkMode: boolean, people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, isLoading?: boolean }) {
+export default function LiveTrackingTab({ people, zones, highlightedPersonId, isLoading: mainIsLoading }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, isLoading?: boolean }) {
   const [selectedPerson, setSelectedPerson] = useState<string | null>(highlightedPersonId || null);
   
   // Real-time data from API
   const { tags, error, isLoading: feedIsLoading } = useGaoRealtime(2000);
 
   return (
-    <div className="flex-1 flex flex-col lg:flex-row p-6 gap-6 bg-slate-50 dark:bg-slate-900 min-h-0 h-full">
+    <div className="flex-1 flex flex-col lg:flex-row p-6 gap-6 bg-slate-50 min-h-0 h-full">
       <div className="flex-1 flex flex-col gap-4 min-h-0">
         <div className="flex justify-between items-center shrink-0">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Live Facility Map</h2>
-            <p className="text-slate-500 dark:text-slate-400 font-medium tracking-tight">Real-time personnel location and zone occupancy</p>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">Live Facility Map</h2>
+            <p className="text-slate-500 font-medium tracking-tight">Real-time personnel location and zone occupancy</p>
           </div>
         </div>
-        <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 relative flex flex-col min-h-0">
+        <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm p-4 relative flex flex-col min-h-0">
            {mainIsLoading ? (
              <div className="flex-1 flex items-center justify-center">
                <div className="flex flex-col items-center gap-4 animate-pulse">

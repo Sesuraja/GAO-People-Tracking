@@ -17,22 +17,18 @@ import LiveTrackingTab from './components/LiveTrackingTab';
 import PlaybackTab from './components/PlaybackTab';
 import DevicesTab from './components/DevicesTab';
 import SettingsTab from './components/SettingsTab';
-import FloorPlanTab from './components/FloorPlanTab';
 import ProfileModal from './components/ProfileModal';
 import ChatBot from './components/ChatBot';
 
 export default function App() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
   return (
     <BrowserRouter>
-      <div className={isDarkMode ? 'dark' : ''}>
-        <AppContent isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
-      </div>
+      <AppContent />
     </BrowserRouter>
   );
 }
 
-function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean, setIsDarkMode: React.Dispatch<React.SetStateAction<boolean>> }) {
+function AppContent() {
   const { people, alerts, ZONES, isLoading } = useSimulation();
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedPersonId, setHighlightedPersonId] = useState<string | null>(null);
@@ -99,7 +95,6 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean, setIsD
         <nav className="flex flex-col gap-1 px-3 flex-1 overflow-y-auto min-h-0">
           <NavItem to="/" icon={<LayoutDashboard size={20}/>} label="Dashboard" />
           <NavItem to="/live" icon={<Map size={20}/>} label="Live Tracking" />
-          <NavItem to="/floorplan" icon={<LayoutDashboard size={20}/>} label="Floor Plan" />
           <NavItem to="/playback" icon={<PlayCircle size={20}/>} label="Playback History" />
           <NavItem to="/people" icon={<Users size={20}/>} label="People" />
           <NavItem to="/alerts" icon={<Bell size={20}/>} label="Alerts" hasNotification={alerts.some(a => a.type === 'security')} />
@@ -128,19 +123,18 @@ function AppContent({ isDarkMode, setIsDarkMode }: { isDarkMode: boolean, setIsD
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50">
-        <TopBar isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
+        <TopBar />
         
-        <div className="flex-1 overflow-hidden relative dark:bg-slate-900 dark:text-slate-100">
+        <div className="flex-1 overflow-hidden relative">
           <div className="absolute inset-0 flex flex-col">
             <Routes>
-                <Route path="/" element={<DashboardTab isDarkMode={isDarkMode} people={people} alerts={alerts} zones={ZONES} highlightedPersonId={highlightedPersonId} isLoading={isLoading} />} />
-              <Route path="/live" element={<LiveTrackingTab isDarkMode={isDarkMode} people={people} zones={ZONES} highlightedPersonId={highlightedPersonId} isLoading={isLoading} />} />
+                <Route path="/" element={<DashboardTab people={people} alerts={alerts} zones={ZONES} highlightedPersonId={highlightedPersonId} isLoading={isLoading} />} />
+              <Route path="/live" element={<LiveTrackingTab people={people} zones={ZONES} highlightedPersonId={highlightedPersonId} isLoading={isLoading} />} />
               <Route path="/playback" element={<PlaybackTab people={people} zones={ZONES} />} />
               <Route path="/people" element={<PeopleTab people={people} />} />
               <Route path="/alerts" element={<AlertsTab alerts={alerts} />} />
               <Route path="/analytics" element={<AnalyticsTab people={people} isLoading={isLoading} />} />
               <Route path="/devices" element={<DevicesTab />} />
-              <Route path="/floorplan" element={<FloorPlanTab />} />
               <Route path="/settings" element={<SettingsTab />} />
             </Routes>
           </div>

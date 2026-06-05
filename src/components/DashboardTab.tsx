@@ -8,7 +8,7 @@ import { gaoApi, HistoryRecord } from '../lib/gaoApi';
 
 const COLORS = ['#007BC4', '#38bdf8', '#10b981', '#f59e0b', '#8b5cf6'];
 
-export default function DashboardTab({ isDarkMode, people, alerts, zones, highlightedPersonId, isLoading }: { isDarkMode: boolean, people: Person[], alerts: AIAlert[], zones: any, highlightedPersonId?: string | null, isLoading?: boolean }) {
+export default function DashboardTab({ people, alerts, zones, highlightedPersonId, isLoading }: { people: Person[], alerts: AIAlert[], zones: any, highlightedPersonId?: string | null, isLoading?: boolean }) {
   const [timelineData, setTimelineData] = useState<{time: string, load: number}[]>([]);
   const movingCount = people.filter(p => p.presenceState === 'MOVING').length;
   const restrictedAlertsCount = alerts.filter(a => a.type === 'security').length;
