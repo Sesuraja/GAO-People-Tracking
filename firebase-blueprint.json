@@ -31,7 +31,14 @@
         "Location": { "type": "string" },
         "Timestamp": { "type": "string" },
         "dwellTime": { "type": "number" },
-        "lastSeen": { "type": "string" }
+        "lastSeen": { "type": "string" },
+        "activityInsights": {
+          "type": "object",
+          "properties": {
+            "activity": { "type": "string" },
+            "confidence": { "type": "number" }
+          }
+        }
       },
       "required": ["TagID", "Location", "Timestamp"]
     },
@@ -40,7 +47,8 @@
       "description": "App settings",
       "type": "object",
       "properties": {
-        "apiUrl": { "type": "string" }
+        "apiUrl": { "type": "string" },
+        "demoMode": { "type": "boolean" }
       }
     }
   },

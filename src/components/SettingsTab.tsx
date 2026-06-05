@@ -9,6 +9,7 @@ export default function SettingsTab() {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [apiUrl, setApiUrl] = useState(DEFAULT_HOST);
+  const [demoMode, setDemoMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -21,6 +22,9 @@ export default function SettingsTab() {
           if (data.apiUrl) {
             setApiUrl(data.apiUrl);
             gaoApi.setHost(data.apiUrl);
+          }
+          if (data.demoMode !== undefined) {
+             setDemoMode(data.demoMode);
           }
         } else {
           // Check local storage as a fallback initially if settings doesn't exist
@@ -40,7 +44,7 @@ export default function SettingsTab() {
   const handleSaveApiUrl = async () => {
     setIsSaving(true);
     try {
-      await setDoc(doc(db, 'settings', 'global'), { apiUrl }, { merge: true });
+      await setDoc(doc(db, 'settings', 'global'), { apiUrl, demoMode }, { merge: true });
       localStorage.setItem('gao_api_url', apiUrl); // Backup to raw storage
       gaoApi.setHost(apiUrl);
       setTestResult(null);

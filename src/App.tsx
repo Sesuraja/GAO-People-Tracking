@@ -18,6 +18,7 @@ import PlaybackTab from './components/PlaybackTab';
 import DevicesTab from './components/DevicesTab';
 import SettingsTab from './components/SettingsTab';
 import ProfileModal from './components/ProfileModal';
+import ChatBot from './components/ChatBot';
 
 export default function App() {
   return (
@@ -141,6 +142,7 @@ function AppContent() {
       </main>
 
       <ProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />
+      <ChatBot />
     </div>
   );
 }

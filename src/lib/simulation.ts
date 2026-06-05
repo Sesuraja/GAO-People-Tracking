@@ -17,6 +17,7 @@ export interface Person {
   y: number;
   lastSeen: Date;
   trail: {x: number, y: number}[];
+  activityInsights?: { activity: string; confidence: number };
 }
 
 export interface AIAlert {

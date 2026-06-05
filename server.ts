@@ -2,6 +2,15 @@ import express from 'express';
 import path from 'path';
 import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
+import 'dotenv/config';
+import { GoogleGenAI, Type } from '@google/genai';
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: { 'User-Agent': 'aistudio-build' }
+  }
+});
 
 async function startServer() {
   const app = express();
@@ -9,6 +18,55 @@ async function startServer() {
 
   app.use(cors());
   app.use(express.json());
+
+  // AI Activity Analysis endpoint
+  app.post('/api/analyze-activity', async (req, res) => {
+    try {
+      const { tags } = req.body;
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: `Analyze these RFID tracking tags to infer staff activity and dwell time. Tags: ${JSON.stringify(tags)}`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              analysis: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    TagID: { type: Type.STRING },
+                    activity: { type: Type.STRING },
+                    confidence: { type: Type.NUMBER }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+      res.json(JSON.parse(response.text!));
+    } catch (e: any) {
+      console.error('AI Analysis Error:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // AI Chat endpoint
+  app.post('/api/staff-chat', async (req, res) => {
+    try {
+      const { message, staffData } = req.body;
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: `You are an AI assistant for a staff tracking system. Answer user questions based on the current staff tracking data provided.\n\nData: ${JSON.stringify(staffData)}\n\nQuestion: ${message}`,
+      });
+      res.json({ response: response.text });
+    } catch (e: any) {
+      console.error('AI Chat Error:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
 
   // Proxy the GAO APIs
   const GAO_API_HOST = 'https://www.i360services.com/peopletrackinguhf';
