@@ -59,7 +59,7 @@ async function startServer() {
       const { message, staffData } = req.body;
       const response = await ai.models.generateContent({
         model: 'gemini-3.5-flash',
-        contents: `You are an AI assistant for a staff tracking system. Answer user questions based on the current staff tracking data provided.\n\nData: ${JSON.stringify(staffData)}\n\nQuestion: ${message}`,
+        contents: `You are the GAO Core Engine Chatbot. You provide technical, operational insights based on the provided staff tracking and device data. Be concise, professional, and act as a systems administrator tool. \n\nData: ${JSON.stringify(staffData)}\n\nQuestion: ${message}`,
       });
       res.json({ response: response.text });
     } catch (e: any) {
