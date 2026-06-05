@@ -12,6 +12,7 @@ export default function FloorPlanTab() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [activeFloorPlanId, setActiveFloorPlanId] = useState<string>('');
+  const [activeDevice, setActiveDevice] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -47,30 +48,14 @@ export default function FloorPlanTab() {
   };
 
   const handleCanvasClick = async (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!activeFloorPlanId) return;
-    
-    const deviceName = prompt('Enter New Device Name:');
-    if (!deviceName) return;
-
+    if (!activeDevice || !activeFloorPlanId) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // 1. Create Device
-    const deviceRef = await addDoc(collection(db, 'devices'), {
-        name: deviceName,
-        location: 'Mapped',
-        type: 'IoT Device',
-        status: 'online',
-        ip: '0.0.0.0'
-    });
-
-    // 2. Create Marker
-    const newMarker = { deviceId: deviceRef.id, x, y, floorPlanId: activeFloorPlanId };
-    const markerRef = await addDoc(collection(db, 'floorPlanMarkers'), newMarker);
-    
-    setMarkers([...markers, { id: markerRef.id, ...newMarker }]);
-    setDevices([...devices, { id: deviceRef.id, name: deviceName }]);
+    const newMarker = { deviceId: activeDevice, x, y, floorPlanId: activeFloorPlanId };
+    const docRef = await addDoc(collection(db, 'floorPlanMarkers'), newMarker);
+    setMarkers([...markers, { id: docRef.id, ...newMarker }]);
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -97,7 +82,16 @@ export default function FloorPlanTab() {
           {floorPlans.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
         </select>
         
-        <p className="text-sm text-slate-500">Pick level and click on plan to place a new device.</p>
+        <select 
+          className="border p-2 rounded dark:bg-slate-800 dark:border-slate-700" 
+          value={activeDevice} 
+          onChange={e => setActiveDevice(e.target.value)}
+        >
+          <option value="">Select Device...</option>
+          {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+        
+        <p className="text-sm text-slate-500">Pick level, select device, and click to place.</p>
       </div>
       
       <div 
