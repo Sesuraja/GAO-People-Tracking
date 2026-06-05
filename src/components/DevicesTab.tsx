@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, Radio, Wifi, WifiOff, AlertCircle, RefreshCw, MoreVertical, Plus } from 'lucide-react';
+import AddDeviceModal from './AddDeviceModal';
 
 const MOCK_DEVICES = [
   { id: 'RD-001', name: 'Main Entrance Reader', location: 'Lobby', type: 'UHF RFID', status: 'online', ip: '10.0.0.12', lastPing: 'Just now', uptime: '45d 12h' },
@@ -13,6 +14,7 @@ const MOCK_DEVICES = [
 export default function DevicesTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [devices] = useState(MOCK_DEVICES);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const filteredDevices = devices.filter(d => 
     d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -37,7 +39,7 @@ export default function DevicesTab() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md border border-transparent transition">
+          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md border border-transparent transition">
             <Plus className="w-4 h-4" /> Add Device
           </button>
         </div>
@@ -141,6 +143,7 @@ export default function DevicesTab() {
           </table>
         </div>
       </div>
+      <AddDeviceModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
   );
 }

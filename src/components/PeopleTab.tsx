@@ -3,11 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { useState } from 'react';
+import AddPersonModal from './AddPersonModal';
 
 export default function PeopleTab({ people }: { people: Person[] }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const filteredPeople = people.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -22,14 +24,19 @@ export default function PeopleTab({ people }: { people: Person[] }) {
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">People Directory</h2>
           <p className="text-slate-500 font-medium">Manage and monitor all personnel currently on site.</p>
         </div>
-        <div className="relative w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-          <Input 
-            placeholder="Search name, ID, or role..." 
-            className="pl-9 bg-white border-slate-200 shadow-sm text-slate-900 placeholder:text-slate-400 focus-visible:ring-[#007BC4]"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex gap-3">
+            <div className="relative w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <Input 
+                placeholder="Search name, ID, or role..." 
+                className="pl-9 bg-white border-slate-200 shadow-sm text-slate-900 placeholder:text-slate-400 focus-visible:ring-[#007BC4]"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            </div>
+            <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-[#007BC4] text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700">
+                <Plus size={18} /> Add Person
+            </button>
         </div>
       </div>
 
@@ -92,6 +99,7 @@ export default function PeopleTab({ people }: { people: Person[] }) {
           </Table>
         </CardContent>
       </Card>
+      <AddPersonModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
   );
 }
