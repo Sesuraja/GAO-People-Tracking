@@ -22,7 +22,7 @@ class GaoApi {
   private host: string;
 
   constructor(host: string = DEFAULT_HOST) {
-    this.host = (typeof window !== 'undefined' ? localStorage.getItem('gao_api_url') || host : host).replace(/\/$/, '');
+    this.host = host;
   }
 
   setHost(host: string) {
