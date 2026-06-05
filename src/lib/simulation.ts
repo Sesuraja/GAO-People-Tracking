@@ -1,7 +1,54 @@
 import { useState, useEffect } from 'react';
 import { gaoApi, RealtimeTag } from './gaoApi';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { collection, addDoc, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 export type Zone = 'Entrance' | 'Office' | 'Meeting Room' | 'Server Room' | 'Cafeteria';
 export type PresenceState = 'MOVING' | 'IDLE' | 'EXITED';
@@ -54,7 +101,7 @@ export function useSimulation() {
       })) as AIAlert[];
       setAlerts(dbAlerts);
     }, (error) => {
-       console.error('Firestore Error sync alerts:', error);
+       handleFirestoreError(error, OperationType.GET, 'alerts');
     });
     return () => unsubscribe();
   }, []);
@@ -106,7 +153,7 @@ export function useSimulation() {
                    type: 'info',
                    message: `System tracked new tag: ${tag.TagID.substring(0, 8)} at ${tag.Location}`,
                    timestamp: new Date()
-               }).catch(e => console.error("Firebase write error:", e));
+               }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
 
            } else {
                p.lastSeen = new Date(tag.Timestamp + "Z");
@@ -124,7 +171,7 @@ export function useSimulation() {
                         type: 'security',
                         message: `UNAUTHORIZED ACCESS: ${p.name} entered Server Room`,
                         timestamp: new Date()
-                      }).catch(console.error);
+                      }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
                    }
                }
            }
@@ -133,7 +180,7 @@ export function useSimulation() {
         return nextPeople;
       });
     }, (error) => {
-       console.error("Firestore Error sync tags:", error);
+       handleFirestoreError(error, OperationType.GET, 'live_tags');
     });
 
     const tick = () => {
@@ -166,7 +213,7 @@ export function useSimulation() {
                type: 'warning',
                message: `LOITERING DETECTED: ${p.name} in Server Room for over 20 minutes`,
                timestamp: new Date()
-             }).catch(console.error);
+             }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
           }
         });
 
