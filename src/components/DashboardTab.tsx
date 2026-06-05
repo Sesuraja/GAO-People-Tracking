@@ -3,14 +3,36 @@ import { Card } from '@/components/ui/card';
 import { Users, UserCheck, Activity, ShieldAlert, Clock, Bell, Map, LayoutDashboard, Cpu, ShieldCheck, Radio } from 'lucide-react';
 import AIFeed from './AIFeed';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
-import { useMemo, ReactNode } from 'react';
+import { useMemo, ReactNode, useState, useEffect } from 'react';
+import { gaoApi, HistoryRecord } from '../lib/gaoApi';
 
 const COLORS = ['#007BC4', '#38bdf8', '#10b981', '#f59e0b', '#8b5cf6'];
 
 export default function DashboardTab({ people, alerts, zones, highlightedPersonId, isLoading }: { people: Person[], alerts: AIAlert[], zones: any, highlightedPersonId?: string | null, isLoading?: boolean }) {
+  const [timelineData, setTimelineData] = useState<{time: string, load: number}[]>([]);
   const movingCount = people.filter(p => p.presenceState === 'MOVING').length;
   const restrictedAlertsCount = alerts.filter(a => a.type === 'security').length;
   const avgDwellInfo = people.length > 0 ? (people.reduce((sum, p) => sum + p.dwellTime, 0) / people.length / 60).toFixed(1) : "0.0";
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const records = await gaoApi.getHistoryRecords(0, 50);
+        // Transform records to chart data
+        const timeline = records.reduce((acc, r) => {
+           const time = new Date(r.EnterTime!).getHours() + ":00";
+           const existing = acc.find(x => x.time === time);
+           if (existing) existing.load++;
+           else acc.push({ time, load: 1 });
+           return acc;
+        }, [] as {time: string, load: number}[]);
+        setTimelineData(timeline);
+      } catch (e) {
+        console.error("Failed to load historical data", e);
+      }
+    }
+    loadData();
+  }, []);
 
   // Data for charts
   const zoneData = useMemo(() => {
@@ -59,11 +81,11 @@ export default function DashboardTab({ people, alerts, zones, highlightedPersonI
     <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6 bg-slate-50 min-h-0">
       {/* KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 shrink-0">
-         <KpiCard title="Total People" value="1,248" sub="↗ 12.5% vs yesterday" icon={<Users className="w-6 h-6 text-white" />} iconColor="bg-[#007BC4]" />
-         <KpiCard title="Currently On-Site" value={people.length.toString()} sub="↗ 8.3% vs yesterday" icon={<UserCheck className="w-6 h-6 text-white" />} iconColor="bg-[#10b981]" />
-         <KpiCard title="In Motion" value={movingCount.toString()} sub="↗ 15.7% vs yesterday" icon={<Activity className="w-6 h-6 text-white" />} iconColor="bg-[#007BC4]" />
-         <KpiCard title="Alerts" value={alerts.length.toString()} sub="↘ 22.2% vs yesterday" icon={<ShieldAlert className="w-6 h-6 text-white" />} iconColor="bg-[#f59e0b]" />
-         <KpiCard title="Avg. Dwell Time" value={`${avgDwellInfo}m`} sub="↗ 5.6% vs yesterday" icon={<Clock className="w-6 h-6 text-white" />} iconColor="bg-[#8b5cf6]" />
+         <KpiCard title="Total People" value="1,248" sub="↗ 12.5% vs yesterday" icon={<Users className="w-6 h-6 text-white" />} iconColor="bg-[#007BC4]" sparklineData={mockTimelineData} />
+         <KpiCard title="Currently On-Site" value={people.length.toString()} sub="↗ 8.3% vs yesterday" icon={<UserCheck className="w-6 h-6 text-white" />} iconColor="bg-[#10b981]" sparklineData={mockTimelineData} />
+         <KpiCard title="In Motion" value={movingCount.toString()} sub="↗ 15.7% vs yesterday" icon={<Activity className="w-6 h-6 text-white" />} iconColor="bg-[#007BC4]" sparklineData={mockTimelineData} />
+         <KpiCard title="Alerts" value={alerts.length.toString()} sub="↘ 22.2% vs yesterday" icon={<ShieldAlert className="w-6 h-6 text-white" />} iconColor="bg-[#f59e0b]" sparklineData={mockTimelineData} />
+         <KpiCard title="Avg. Dwell Time" value={`${avgDwellInfo}m`} sub="↗ 5.6% vs yesterday" icon={<Clock className="w-6 h-6 text-white" />} iconColor="bg-[#8b5cf6]" sparklineData={mockTimelineData} />
       </div>
       
       {/* Middle Row (System Overview + Alerts) */}
@@ -181,7 +203,7 @@ export default function DashboardTab({ people, alerts, zones, highlightedPersonI
                 <XAxis dataKey="time" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
                 <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} itemStyle={{ color: '#0f172a', fontWeight: 'bold' }} />
-                <Area type="monotone" dataKey="load" stroke="#007BC4" strokeWidth={2} fillOpacity={1} fill="url(#colorLoad)" />
+                <Area type="monotone" dataKey="load" stroke="#007BC4" strokeWidth={2} fillOpacity={1} fill="url(#colorLoad)" data={timelineData} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -302,18 +324,36 @@ export default function DashboardTab({ people, alerts, zones, highlightedPersonI
   );
 }
 
-function KpiCard({ title, value, sub, icon, iconColor }: { title: string, value: string, sub: string, icon: ReactNode, iconColor: string }) {
+const Sparkline = ({ data }: { data: { load: number }[] }) => (
+  <div className="w-full h-12 mt-2">
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data}>
+        <Area type="monotone" dataKey="load" stroke="#007BC4" fill="#007BC4" fillOpacity={0.1} strokeWidth={2} />
+      </AreaChart>
+    </ResponsiveContainer>
+  </div>
+);
+
+function KpiCard({ title, value, sub, icon, iconColor, sparklineData }: { title: string, value: string, sub: string, icon: ReactNode, iconColor: string, sparklineData?: { load: number }[] }) {
   const isUp = sub.includes('↗');
+  const [isHovered, setIsHovered] = useState(false);
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4 transition hover:shadow-md">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${iconColor} shadow-inner`}>
-        {icon}
+    <div 
+      className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col transition hover:shadow-md cursor-pointer"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div className="flex items-center gap-4">
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${iconColor} shadow-inner`}>
+          {icon}
+        </div>
+        <div className="flex flex-col min-w-0">
+          <span className="text-xs font-semibold text-slate-500 truncate mb-0.5">{title}</span>
+          <span className="text-2xl font-bold text-slate-900 leading-none mb-1">{value}</span>
+          <span className={`text-[10px] font-bold ${isUp ? 'text-emerald-500' : 'text-rose-500'} truncate`}>{sub}</span>
+        </div>
       </div>
-      <div className="flex flex-col min-w-0">
-        <span className="text-xs font-semibold text-slate-500 truncate mb-0.5">{title}</span>
-        <span className="text-2xl font-bold text-slate-900 leading-none mb-1">{value}</span>
-        <span className={`text-[10px] font-bold ${isUp ? 'text-emerald-500' : 'text-rose-500'} truncate`}>{sub}</span>
-      </div>
+      {isHovered && sparklineData && <Sparkline data={sparklineData} />}
     </div>
   );
 }
