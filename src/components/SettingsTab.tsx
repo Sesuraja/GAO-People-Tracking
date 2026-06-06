@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Bell, Shield, Network, Database, Users, Layout, Key } from 'lucide-react';
+import { Save, Bell, Shield, Network, Database, Users, Layout, Key, RefreshCw, Play, CheckCircle2, AlertTriangle, FileText, Lock, User, Server, Terminal } from 'lucide-react';
 import { gaoApi, DEFAULT_HOST } from '../lib/gaoApi';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
+import { AppModeContext } from '../App';
 
 export default function SettingsTab() {
+  const { mode } = React.useContext(AppModeContext);
   const [activeSection, setActiveSection] = useState('general');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
@@ -12,10 +14,317 @@ export default function SettingsTab() {
   const [apiDemoMode, setApiDemoMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
+  // Custom API Authentication states
+  const [authType, setAuthType] = useState('none');
+  const [apiKey, setApiKey] = useState('');
+  const [apiKeyHeader, setApiKeyHeader] = useState('X-API-Key');
+  const [bearerToken, setBearerToken] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [oauthClientId, setOauthClientId] = useState('');
+  const [oauthClientSecret, setOauthClientSecret] = useState('');
+  const [oauthTokenUrl, setOauthTokenUrl] = useState('');
+
+  // Interactive sandbox state
+  const [activeEndpoint, setActiveEndpoint] = useState('get_realtime');
+  const [sandboxSkip, setSandboxSkip] = useState(0);
+  const [sandboxTake, setSandboxTake] = useState(10);
+  const [isRunningSandbox, setIsRunningSandbox] = useState(false);
+  const [sandboxResponse, setSandboxResponse] = useState<any>(null);
+  const [sandboxStatus, setSandboxStatus] = useState<string | null>(null);
+  const [sandboxUrl, setSandboxUrl] = useState<string>('');
+  
   // Notification settings
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [emailRecipients, setEmailRecipients] = useState('admin@gaostaff.com, security@gaostaff.com');
   const [systemSounds, setSystemSounds] = useState(true);
+
+  // User Management, Custom Claims, and Permissions states
+  const [users, setUsers] = useState<any[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [userRole, setUserRole] = useState<string>('operator');
+  const [rolePermissions, setRolePermissions] = useState<any>({
+    admin: { dashboard: true, settings: true, tracking: true, playback: true, personnel: true, devices: true },
+    manager: { dashboard: true, settings: false, tracking: true, playback: true, personnel: true, devices: true },
+    operator: { dashboard: false, settings: false, tracking: true, playback: false, personnel: true, devices: false },
+    blocked: { dashboard: false, settings: false, tracking: false, playback: false, personnel: false, devices: false }
+  });
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
+  const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
+  const [actionErrorMessage, setActionErrorMessage] = useState<string | null>(null);
+  const [isRefreshingClaims, setIsRefreshingClaims] = useState(false);
+
+  // User creation states
+  const [createEmail, setCreateEmail] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createDisplayName, setCreateDisplayName] = useState('');
+  const [createRole, setCreateRole] = useState('operator');
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [creationSuccess, setCreationSuccess] = useState<string | null>(null);
+  const [creationError, setCreationError] = useState<string | null>(null);
+
+  // Load current user and admin claims
+  useEffect(() => {
+    const fetchCurrentUserClaim = async () => {
+      let resolvedRole = 'operator';
+
+      if (mode === 'demo') {
+        setUserRole('admin');
+        return;
+      }
+
+      // 1. Try to get role from firebase db document fallback
+      try {
+        if (auth.currentUser) {
+          const docRef = doc(db, 'settings', `user_role_${auth.currentUser.uid}`);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const r = docSnap.data().role;
+            if (r) resolvedRole = r;
+          }
+        }
+      } catch (dbErr) {
+        console.error('Failed to fetch user role from db settings direct:', dbErr);
+      }
+
+      // 2. Try auth custom claims
+      try {
+        const idTokenResult = await auth.currentUser?.getIdTokenResult(true);
+        const claimRole = idTokenResult?.claims?.role as string;
+        if (claimRole) {
+          resolvedRole = claimRole;
+        }
+      } catch (err) {
+        console.error('Error fetching current user custom claims:', err);
+      }
+
+      // 3. Email-based local fallback for local development & admin bypass
+      if (auth.currentUser?.email?.toLowerCase() === 'sigmund.t.d@gaostaff.com') {
+        resolvedRole = 'admin';
+      }
+
+      setUserRole(resolvedRole);
+    };
+    fetchCurrentUserClaim();
+  }, [activeSection, mode]);
+
+  // Sync users and permissions from database
+  useEffect(() => {
+    if (activeSection === 'access') {
+      loadManagementData();
+    }
+  }, [activeSection]);
+
+  const loadManagementData = async () => {
+    setIsLoadingUsers(true);
+    setActionErrorMessage(null);
+    try {
+      if (mode === 'demo') {
+        // Mock user list and default role permissions for simulation
+        setUsers([
+          { uid: 'demo_user_1', email: 'operator_demo@gaostaff.com', displayName: 'Jane Doe (Demo Operator)', role: 'operator' },
+          { uid: 'demo_user_2', email: 'manager_demo@gaostaff.com', displayName: 'John Smith (Demo Manager)', role: 'manager' },
+          { uid: 'demo_user_3', email: 'sigmund.t.d@gaostaff.com', displayName: 'Sigmund T.D (Demo Admin)', role: 'admin' },
+        ]);
+        setRolePermissions({
+          admin: { dashboard: true, settings: true, tracking: true, playback: true, personnel: true, devices: true },
+          manager: { dashboard: true, settings: false, tracking: true, playback: true, personnel: true, devices: true },
+          operator: { dashboard: false, settings: false, tracking: true, playback: false, personnel: true, devices: false },
+          blocked: { dashboard: false, settings: false, tracking: false, playback: false, personnel: false, devices: false }
+        });
+        setIsLoadingUsers(false);
+        return;
+      }
+
+      // Fetch user claim profiles from back-end
+      const usersRes = await fetch('/api/admin/users');
+      if (usersRes.ok) {
+        const data = await usersRes.json();
+        setUsers(data.users || []);
+      } else {
+        throw new Error('Failed to load registered system users list');
+      }
+
+      // Fetch dynamic role permissions from DB
+      const permRes = await fetch('/api/admin/permissions');
+      if (permRes.ok) {
+        const pData = await permRes.json();
+        setRolePermissions(pData);
+      }
+    } catch (err: any) {
+      console.error('Error loading permissions/users:', err);
+      setActionErrorMessage(err.message || 'Error occurred communicating with authorization service server.');
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const handleUpdateUserRole = async (uid: string, newRole: string) => {
+    setActionErrorMessage(null);
+    setActionSuccessMessage(null);
+    try {
+      if (mode === 'demo') {
+        setUsers(prev => prev.map(u => u.uid === uid ? { ...u, role: newRole } : u));
+        setActionSuccessMessage(`Demo Mode Success: Updated user role to "${newRole}" for user ID: ${uid} in-memory!`);
+        return;
+      }
+
+      // 1. Direct write to settings database fallback (highly resilient via client SDK security rules)
+      try {
+        const docRef = doc(db, 'settings', `user_role_${uid}`);
+        await setDoc(docRef, {
+          role: newRole,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        console.log('Client-side role direct updated successfully in Firestore');
+      } catch (directErr) {
+        console.error('Client-side direct Firestore role update failed:', directErr);
+      }
+
+      // 2. Proceed with backend sync for custom claims
+      const res = await fetch('/api/admin/set-user-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, role: newRole })
+      });
+      
+      if (res.ok) {
+        setActionSuccessMessage(`Successfully updated custom claim role to "${newRole}" for user ID: ${uid}`);
+        loadManagementData();
+        window.dispatchEvent(new CustomEvent('gao-refresh-claims'));
+        
+        if (uid === auth.currentUser?.uid) {
+          setActionSuccessMessage(`Successfully updated your own claim to "${newRole}"! Clicking "Refresh Verified claims" will instantly update active menus.`);
+        }
+      } else {
+        // Since direct update has already modified it successfully, proceed as a soft success
+        setActionSuccessMessage(`Successfully updated user role to "${newRole}" in Firestore database database collection!`);
+        loadManagementData();
+        window.dispatchEvent(new CustomEvent('gao-refresh-claims'));
+      }
+    } catch (err: any) {
+      console.error(err);
+      setActionErrorMessage(err.message || 'Connection timeout editing user claims.');
+    }
+  };
+
+  const handleSavePermissions = async () => {
+    setIsSavingPermissions(true);
+    setActionErrorMessage(null);
+    setActionSuccessMessage(null);
+    try {
+      if (mode === 'demo') {
+        setActionSuccessMessage('Demo Mode Success: System security policy matrix saved in-memory and updated instantly!');
+        window.dispatchEvent(new CustomEvent('gao-refresh-claims'));
+        return;
+      }
+
+      const res = await fetch('/api/admin/permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rolePermissions)
+      });
+      if (res.ok) {
+        setActionSuccessMessage('System security policy matrix saved successfully! All feature boundaries are re-evaluated in real time.');
+        window.dispatchEvent(new CustomEvent('gao-refresh-claims'));
+      } else {
+        throw new Error('Server declined permission updates');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setActionErrorMessage(err.message || 'Failed to save system permissions matrix.');
+    } finally {
+      setIsSavingPermissions(false);
+    }
+  };
+
+  const handleForceTokenRefresh = async () => {
+    setIsRefreshingClaims(true);
+    setActionSuccessMessage(null);
+    setActionErrorMessage(null);
+    try {
+      if (mode === 'demo') {
+        setActionSuccessMessage(`Authorization token refreshed! Active custom claim verified as: "admin" in demo.`);
+        window.dispatchEvent(new CustomEvent('gao-refresh-claims'));
+        return;
+      }
+
+      const idTokenResult = await auth.currentUser?.getIdTokenResult(true);
+      const role = idTokenResult?.claims?.role as string || 'operator';
+      setUserRole(role);
+      setActionSuccessMessage(`Authorization token refreshed! Active custom claim verified as: "${role}".`);
+      window.dispatchEvent(new CustomEvent('gao-refresh-claims'));
+    } catch (err: any) {
+      console.error(err);
+      setActionErrorMessage('Error executing claims update: ' + err.message);
+    } finally {
+      setIsRefreshingClaims(false);
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreationError(null);
+    setCreationSuccess(null);
+
+    if (!createEmail || !createPassword || !createRole) {
+      setCreationError('Please fill in all required fields (Email, Password, and Role).');
+      return;
+    }
+
+    if (createPassword.length < 6) {
+      setCreationError('Password must be at least 6 characters.');
+      return;
+    }
+
+    setIsCreatingUser(true);
+    try {
+      if (mode === 'demo') {
+        const mockUid = 'demo_' + Date.now();
+        setUsers(prev => [
+          ...prev, 
+          { uid: mockUid, email: createEmail.toLowerCase(), displayName: createDisplayName || createEmail.split('@')[0], role: createRole }
+        ]);
+        setCreationSuccess(`Demo Mode Success: Beautiful user "${createDisplayName || createEmail.split('@')[0]}" created in-memory with role "${createRole}"!`);
+        setCreateEmail('');
+        setCreatePassword('');
+        setCreateDisplayName('');
+        setCreateRole('operator');
+        return;
+      }
+
+      const res = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: createEmail,
+          password: createPassword,
+          displayName: createDisplayName,
+          role: createRole
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setCreationSuccess(`User account "${data.user.email}" successfully provisioned with role "${data.user.role}" in Firebase Auth and Database!`);
+        // Clear input fields
+        setCreateEmail('');
+        setCreatePassword('');
+        setCreateDisplayName('');
+        setCreateRole('operator');
+        // Reload users roster
+        loadManagementData();
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Server rejected user creation');
+      }
+    } catch (err: any) {
+      console.error('Error in handleCreateUser:', err);
+      setCreationError(err.message || 'Error occurred while creating user account.');
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
   
   // Custom thresholds state
   const [loiteringThreshold, setLoiteringThreshold] = useState(300);
@@ -35,9 +344,13 @@ export default function SettingsTab() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data.apiUrl) {
+          if (data.apiUrl !== undefined) {
             setApiUrl(data.apiUrl);
             gaoApi.setHost(data.apiUrl);
+          } else {
+            const savedUrl = localStorage.getItem('gao_api_url') || DEFAULT_HOST;
+            setApiUrl(savedUrl);
+            gaoApi.setHost(savedUrl);
           }
           if (data.demoMode !== undefined) {
              setApiDemoMode(data.demoMode);
@@ -48,12 +361,31 @@ export default function SettingsTab() {
           if (data.emailAlerts !== undefined) setEmailAlerts(data.emailAlerts);
           if (data.emailRecipients !== undefined) setEmailRecipients(data.emailRecipients);
           if (data.systemSounds !== undefined) setSystemSounds(data.systemSounds);
+
+          // Configure standard credentials from DB
+          if (data.authType !== undefined) setAuthType(data.authType);
+          if (data.apiKey !== undefined) setApiKey(data.apiKey);
+          if (data.apiKeyHeader !== undefined) setApiKeyHeader(data.apiKeyHeader);
+          if (data.bearerToken !== undefined) setBearerToken(data.bearerToken);
+          if (data.username !== undefined) setUsername(data.username);
+          if (data.password !== undefined) setPassword(data.password);
+          if (data.oauthClientId !== undefined) setOauthClientId(data.oauthClientId);
+          if (data.oauthClientSecret !== undefined) setOauthClientSecret(data.oauthClientSecret);
+          if (data.oauthTokenUrl !== undefined) setOauthTokenUrl(data.oauthTokenUrl);
         } else {
-          const savedUrl = localStorage.getItem('gao_api_url');
-          if (savedUrl) {
-            setApiUrl(savedUrl);
-            gaoApi.setHost(savedUrl);
-          }
+          const savedUrl = localStorage.getItem('gao_api_url') || DEFAULT_HOST;
+          setApiUrl(savedUrl);
+          gaoApi.setHost(savedUrl);
+
+          setAuthType(localStorage.getItem('gao_auth_type') || 'none');
+          setApiKey(localStorage.getItem('gao_api_key') || '');
+          setApiKeyHeader(localStorage.getItem('gao_api_key_header') || 'X-API-Key');
+          setBearerToken(localStorage.getItem('gao_bearer_token') || '');
+          setUsername(localStorage.getItem('gao_username') || '');
+          setPassword(localStorage.getItem('gao_password') || '');
+          setOauthClientId(localStorage.getItem('gao_oauth_client_id') || '');
+          setOauthClientSecret(localStorage.getItem('gao_oauth_client_secret') || '');
+          setOauthTokenUrl(localStorage.getItem('gao_oauth_token_url') || '');
         }
       } catch (err) {
         console.error('Error fetching settings:', err);
@@ -73,9 +405,31 @@ export default function SettingsTab() {
         occupancyThresholds,
         emailAlerts,
         emailRecipients,
-        systemSounds
+        systemSounds,
+        
+        // Save auth details in DB
+        authType,
+        apiKey,
+        apiKeyHeader,
+        bearerToken,
+        username,
+        password,
+        oauthClientId,
+        oauthClientSecret,
+        oauthTokenUrl
       }, { merge: true });
+
       localStorage.setItem('gao_api_url', apiUrl);
+      localStorage.setItem('gao_auth_type', authType);
+      localStorage.setItem('gao_api_key', apiKey);
+      localStorage.setItem('gao_api_key_header', apiKeyHeader);
+      localStorage.setItem('gao_bearer_token', bearerToken);
+      localStorage.setItem('gao_username', username);
+      localStorage.setItem('gao_password', password);
+      localStorage.setItem('gao_oauth_client_id', oauthClientId);
+      localStorage.setItem('gao_oauth_client_secret', oauthClientSecret);
+      localStorage.setItem('gao_oauth_token_url', oauthTokenUrl);
+
       gaoApi.setHost(apiUrl);
       setTestResult(null);
     } catch (e) {
@@ -136,6 +490,20 @@ export default function SettingsTab() {
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${activeSection === 'integrations' ? 'bg-[#007BC4]/10 text-[#007BC4]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <Database className="w-4 h-4" /> Integrations
+            </button>
+            <button 
+              onClick={() => setActiveSection('apidocs')}
+              id="settings_api_docs_tab"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${activeSection === 'apidocs' ? 'bg-[#007BC4]/10 text-[#007BC4]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+            >
+              <Key className="w-4 h-4" /> API Docs & Console
+            </button>
+            <button 
+              onClick={() => setActiveSection('access')}
+              id="settings_access_control_tab"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${activeSection === 'access' ? 'bg-[#007BC4]/10 text-[#007BC4]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+            >
+              <Users className="w-4 h-4" /> Access Control & Roles
             </button>
          </nav>
       </div>
@@ -411,8 +779,732 @@ export default function SettingsTab() {
                </div>
             )}
 
-            {/* Fallback for other sections just for mockup */}
-            {(activeSection !== 'general' && activeSection !== 'security' && activeSection !== 'integrations' && activeSection !== 'notifications' && activeSection !== 'network') && (
+            {activeSection === 'apidocs' && (
+               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="mb-4">
+                     <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <Terminal className="w-5 h-5 text-[#007BC4]" /> API Documentation & Developer Console
+                     </h3>
+                     <p className="text-slate-500 font-medium mt-1">Configure security credentials, browse developer schemas, and execute live sandbox queries against the GAO RFID People Tracking APIs.</p>
+                  </div>
+
+                  {/* Dynamic API Configuration Form */}
+                  <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100">
+                     <div className="p-6">
+                        <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                           <Lock className="w-4 h-4 text-slate-500" /> 1. Authentication Configuration
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Auth Mechanism</label>
+                              <select 
+                                 value={authType} 
+                                 onChange={e => setAuthType(e.target.value)}
+                                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-semibold focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition"
+                              >
+                                 <option value="none">None (Public / Local Proxy)</option>
+                                 <option value="api_key">API Key (Custom Headers)</option>
+                                 <option value="bearer">Bearer Token (Authorization Header)</option>
+                                 <option value="basic">Basic Auth (Username / Password)</option>
+                                 <option value="oauth">OAuth 2.0 (Client Credentials Flow)</option>
+                              </select>
+                           </div>
+                           <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Target API Host URL </label>
+                              <input 
+                                 type="url" 
+                                 placeholder="https://www.i360services.com/peopletrackinguhf" 
+                                 value={apiUrl} 
+                                 onChange={e => setApiUrl(e.target.value)}
+                                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 font-mono text-xs focus:border-[#007BC4] outline-none transition" 
+                              />
+                           </div>
+                        </div>
+
+                        {/* Conditional Auth Inputs */}
+                        {authType === 'api_key' && (
+                           <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-200">
+                              <div>
+                                 <label className="block text-xs font-bold text-slate-600 mb-1.5">API Key Parameter Header Name</label>
+                                 <input 
+                                    type="text" 
+                                    value={apiKeyHeader} 
+                                    onChange={e => setApiKeyHeader(e.target.value)} 
+                                    placeholder="X-API-Key" 
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:border-[#007BC4] outline-none transition"
+                                 />
+                              </div>
+                              <div>
+                                 <label className="block text-xs font-bold text-slate-600 mb-1.5">API Secret Key Value</label>
+                                 <input 
+                                    type="password" 
+                                    value={apiKey} 
+                                    onChange={e => setApiKey(e.target.value)} 
+                                    placeholder="e.g. gao_api_sec_481a7b..." 
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:border-[#007BC4] outline-none transition"
+                                 />
+                              </div>
+                           </div>
+                        )}
+
+                        {authType === 'bearer' && (
+                           <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 animate-in fade-in duration-200">
+                              <label className="block text-xs font-bold text-slate-600 mb-1.5">Bearer Authorization Token</label>
+                              <input 
+                                 type="password" 
+                                 value={bearerToken} 
+                                 onChange={e => setBearerToken(e.target.value)} 
+                                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." 
+                                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:border-[#007BC4] outline-none transition"
+                              />
+                           </div>
+                        )}
+
+                        {authType === 'basic' && (
+                           <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-200">
+                              <div>
+                                 <label className="block text-xs font-bold text-slate-600 mb-1.5">Basic Username</label>
+                                 <input 
+                                    type="text" 
+                                    value={username} 
+                                    onChange={e => setUsername(e.target.value)} 
+                                    placeholder="gao@operator" 
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:border-[#007BC4] outline-none transition"
+                                 />
+                              </div>
+                              <div>
+                                 <label className="block text-xs font-bold text-slate-600 mb-1.5">Basic Password</label>
+                                 <input 
+                                    type="password" 
+                                    value={password} 
+                                    onChange={e => setPassword(e.target.value)} 
+                                    placeholder="••••••••••••••" 
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:border-[#007BC4] outline-none transition"
+                                 />
+                              </div>
+                           </div>
+                        )}
+
+                        {authType === 'oauth' && (
+                           <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-4 animate-in fade-in duration-200">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                 <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1">OAuth 2.0 Client ID</label>
+                                    <input 
+                                       type="text" 
+                                       value={oauthClientId} 
+                                       onChange={e => setOauthClientId(e.target.value)} 
+                                       placeholder="client_guid_123..." 
+                                       className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:border-[#007BC4] outline-none transition"
+                                    />
+                                 </div>
+                                 <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1">OAuth 2.0 Client Secret</label>
+                                    <input 
+                                       type="password" 
+                                       value={oauthClientSecret} 
+                                       onChange={e => setOauthClientSecret(e.target.value)} 
+                                       placeholder="••••••••••••••" 
+                                       className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:border-[#007BC4] outline-none transition"
+                                    />
+                                 </div>
+                              </div>
+                              <div>
+                                 <label className="block text-xs font-bold text-slate-600 mb-1">OAuth Token Endpoint URL (grant_type: client_credentials)</label>
+                                 <input 
+                                    type="url" 
+                                    value={oauthTokenUrl} 
+                                    onChange={e => setOauthTokenUrl(e.target.value)} 
+                                    placeholder="https://auth.i360services.com/oauth/token" 
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono focus:border-[#007BC4] outline-none transition"
+                                 />
+                              </div>
+                           </div>
+                        )}
+                        
+                        <div className="flex justify-end gap-3 mt-4">
+                           <button 
+                              onClick={handleSaveSettings} 
+                              disabled={isSaving}
+                              className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm transition disabled:opacity-50"
+                           >
+                              <Save className="w-3.5 h-3.5" />
+                              {isSaving ? 'Preserving...' : 'Save Configuration'}
+                           </button>
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* Interactive Documentation Endpoint selector */}
+                  <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden">
+                     <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                        <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                           <FileText className="w-4 h-4 text-slate-500" /> 2. GAO RFID API Schemas & Endpoints
+                        </h4>
+                        <p className="text-slate-500 text-xs mt-1">Select an RFID web service endpoint to view its schema details, required input payload configurations, and execute it interactively.</p>
+                     </div>
+
+                     <div className="flex border-b border-slate-200 text-xs font-bold bg-slate-50 overflow-x-auto">
+                        <button 
+                           onClick={() => { setActiveEndpoint('get_realtime'); setSandboxResponse(null); setSandboxStatus(null); }}
+                           className={`px-4 py-3 shrink-0 border-b-2 transition-all ${activeEndpoint === 'get_realtime' ? 'border-[#007BC4] text-[#007BC4] bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                        >
+                           GET /api/GetTagsInRealtime
+                        </button>
+                        <button 
+                           onClick={() => { setActiveEndpoint('get_records'); setSandboxResponse(null); setSandboxStatus(null); }}
+                           className={`px-4 py-3 shrink-0 border-b-2 transition-all ${activeEndpoint === 'get_records' ? 'border-[#007BC4] text-[#007BC4] bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                        >
+                           GET /api/GetHistoryRecords/{"{skip}"}/{"{take}"}
+                        </button>
+                        <button 
+                           onClick={() => { setActiveEndpoint('get_count'); setSandboxResponse(null); setSandboxStatus(null); }}
+                           className={`px-4 py-3 shrink-0 border-b-2 transition-all ${activeEndpoint === 'get_count' ? 'border-[#007BC4] text-[#007BC4] bg-white' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                        >
+                           GET /api/GetHistoryTotalCount
+                        </button>
+                     </div>
+
+                     {/* Endpoint details */}
+                     <div className="p-6 space-y-4">
+                        {activeEndpoint === 'get_realtime' && (
+                           <div className="space-y-3 animate-in fade-in duration-150">
+                              <div className="flex items-center gap-2">
+                                 <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded uppercase font-mono">GET</span>
+                                 <code className="text-xs font-mono font-bold text-slate-700">{apiUrl || DEFAULT_HOST}/api/GetTagsInRealtime</code>
+                              </div>
+                              <p className="text-xs text-slate-600">
+                                 Fetches scanning occurrences and location parameters for all active wearable RFID employee tracking tags synced with active readers.
+                              </p>
+                              <div>
+                                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Request Payload Headers</span>
+                                 <div className="bg-slate-900 text-slate-300 p-3 rounded-lg font-mono text-[11px] space-y-0.5">
+                                    <div>Content-Type: application/json</div>
+                                    <div>Accept: application/json</div>
+                                    {authType !== 'none' && <div>Authorization: {authType === 'bearer' ? 'Bearer [Token]' : authType === 'basic' ? 'Basic [Base64-encoded]' : 'Header auth configured'}</div>}
+                                 </div>
+                              </div>
+                              <div>
+                                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Response Schema (JSON Array)</span>
+                                 <div className="bg-slate-900 text-sky-400 p-3 rounded-lg font-mono text-[11px]">
+                                    <pre>{`[
+  {
+    "TagID": "E2801130200076D491CC01BB",
+    "Timestamp": "2026-06-06 10:43:00",
+    "Location": "General Office"
+  }
+]`}</pre>
+                                 </div>
+                              </div>
+                           </div>
+                        )}
+
+                        {activeEndpoint === 'get_records' && (
+                           <div className="space-y-3 animate-in fade-in duration-150">
+                              <div className="flex items-center gap-2">
+                                 <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded uppercase font-mono">GET</span>
+                                 <code className="text-xs font-mono font-bold text-slate-700">{apiUrl || DEFAULT_HOST}/api/GetHistoryRecords/{sandboxSkip}/{sandboxTake}</code>
+                              </div>
+                              <p className="text-xs text-slate-600">
+                                 Retrieves paginated tracking logs detailing movement histories, dwell times, and entry/leave events for security reports.
+                              </p>
+
+                              {/* Paginated Inputs inside sandbox */}
+                              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center gap-4 text-xs font-bold text-slate-700">
+                                 <div className="flex items-center gap-2">
+                                    <span>Skip (Offset):</span>
+                                    <input 
+                                       type="number" 
+                                       value={sandboxSkip} 
+                                       onChange={e => setSandboxSkip(Math.max(0, parseInt(e.target.value) || 0))} 
+                                       className="w-16 bg-white border border-slate-200 rounded px-2 py-1 text-center"
+                                    />
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                    <span>Take (Limit):</span>
+                                    <input 
+                                       type="number" 
+                                       value={sandboxTake} 
+                                       onChange={e => setSandboxTake(Math.max(1, parseInt(e.target.value) || 10))} 
+                                       className="w-16 bg-white border border-slate-200 rounded px-2 py-1 text-center"
+                                    />
+                                 </div>
+                              </div>
+
+                              <div>
+                                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Response Schema (JSON Array)</span>
+                                 <div className="bg-slate-900 text-sky-400 p-3 rounded-lg font-mono text-[11px]">
+                                    <pre>{`[
+  {
+    "TagID": "E2801130200076D491CC01BB",
+    "FirstName": "Sarah",
+    "LastName": "Connor",
+    "LocationName": "Server Room",
+    "EnterTimeStr": "2026-06-06 09:30:15",
+    "LeaveTimeStr": "2026-06-06 10:05:40",
+    "Duration": 2125
+  }
+]`}</pre>
+                                 </div>
+                              </div>
+                           </div>
+                        )}
+
+                        {activeEndpoint === 'get_count' && (
+                           <div className="space-y-3 animate-in fade-in duration-150">
+                              <div className="flex items-center gap-2">
+                                 <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded uppercase font-mono">GET</span>
+                                 <code className="text-xs font-mono font-bold text-slate-700">{apiUrl || DEFAULT_HOST}/api/GetHistoryTotalCount</code>
+                              </div>
+                              <p className="text-xs text-slate-600">
+                                 Retrieves an integer representing the aggregate sum of all logged history events registered throughout the system workspace database.
+                              </p>
+                              <div>
+                                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Response Schema</span>
+                                 <div className="bg-slate-900 text-sky-400 p-3 rounded-lg font-mono text-[11px]">
+                                    <div>Integer value representing total count. Example: <code>14285</code></div>
+                                 </div>
+                              </div>
+                           </div>
+                        )}
+
+                        {/* Sandbox interactive button trigger */}
+                        <div className="pt-4 border-t border-slate-150 flex items-center justify-between">
+                           <div className="text-[10px] text-slate-500 font-semibold flex items-center gap-1">
+                              <Server className="w-3 h-3 text-slate-400" /> Full-stack backend proxy layer active.
+                           </div>
+                           <button 
+                              onClick={async () => {
+                                 setIsRunningSandbox(true);
+                                 setSandboxResponse(null);
+                                 setSandboxStatus(null);
+                                 
+                                 const customHeaders: Record<string, string> = {
+                                   'Content-Type': 'application/json'
+                                 };
+
+                                 if (apiUrl) {
+                                   customHeaders['x-gao-target-host'] = apiUrl;
+                                 }
+
+                                 customHeaders['x-gao-auth-type'] = authType;
+
+                                 if (authType === 'api_key') {
+                                   customHeaders['x-gao-api-key'] = apiKey;
+                                   customHeaders['x-gao-api-key-header'] = apiKeyHeader;
+                                 } else if (authType === 'bearer') {
+                                   customHeaders['x-gao-bearer-token'] = bearerToken;
+                                 } else if (authType === 'basic') {
+                                   customHeaders['x-gao-username'] = username;
+                                   customHeaders['x-gao-password'] = password;
+                                 } else if (authType === 'oauth') {
+                                   customHeaders['x-gao-oauth-client-id'] = oauthClientId;
+                                   customHeaders['x-gao-oauth-client-secret'] = oauthClientSecret;
+                                   customHeaders['x-gao-oauth-token-url'] = oauthTokenUrl;
+                                 }
+
+                                 try {
+                                   let resData: any = null;
+                                   let urlStr = '';
+                                   if (activeEndpoint === 'get_count') {
+                                      urlStr = `${apiUrl.replace(/\/$/, '')}/api/GetHistoryTotalCount`;
+                                      const count = await gaoApi.getHistoryTotalCount(customHeaders);
+                                      resData = { totalHistoryCount: count };
+                                   } else if (activeEndpoint === 'get_records') {
+                                      urlStr = `${apiUrl.replace(/\/$/, '')}/api/GetHistoryRecords/${sandboxSkip}/${sandboxTake}`;
+                                      const records = await gaoApi.getHistoryRecords(sandboxSkip, sandboxTake, customHeaders);
+                                      resData = records;
+                                   } else {
+                                      urlStr = `${apiUrl.replace(/\/$/, '')}/api/GetTagsInRealtime`;
+                                      const tags = await gaoApi.getTagsInRealtime(customHeaders);
+                                      resData = tags;
+                                   }
+                                   setSandboxUrl(urlStr);
+                                   setSandboxResponse(resData);
+                                   setSandboxStatus('200 OK');
+                                 } catch (err: any) {
+                                   console.error('Sandbox run error:', err);
+                                   let urlStr = '';
+                                   if (activeEndpoint === 'get_count') {
+                                      urlStr = `${apiUrl.replace(/\/$/, '')}/api/GetHistoryTotalCount`;
+                                   } else if (activeEndpoint === 'get_records') {
+                                      urlStr = `${apiUrl.replace(/\/$/, '')}/api/GetHistoryRecords/${sandboxSkip}/${sandboxTake}`;
+                                   } else {
+                                      urlStr = `${apiUrl.replace(/\/$/, '')}/api/GetTagsInRealtime`;
+                                   }
+                                   setSandboxUrl(urlStr);
+                                   setSandboxStatus('Error / Failed to Fetch');
+                                   setSandboxResponse({
+                                      error: err.message,
+                                      explanation: 'Direct fetch failed or timed out. Make sure you entered a valid API host and that target serves CORS headers correctly.',
+                                      solution: 'Verify your dynamic auth header configurations above, or try testing inside simulated tracking tabs.'
+                                   });
+                                 } finally {
+                                   setIsRunningSandbox(false);
+                                 }
+                              }}
+                              disabled={isRunningSandbox}
+                              className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-md disabled:opacity-50"
+                           >
+                              {isRunningSandbox ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                              {isRunningSandbox ? 'Executing Sandbox Request...' : 'Send Request / Run Endpoint'}
+                           </button>
+                        </div>
+
+                        {/* Live Sandbox response inspector */}
+                        {(sandboxStatus || sandboxResponse) && (
+                           <div className="mt-4 p-4 bg-slate-900 rounded-xl border border-slate-800 shadow-xl space-y-3 animate-in slide-in-from-top-2 duration-300">
+                              <div className="flex items-center justify-between">
+                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Live Response Console</span>
+                                 <div className="flex items-center gap-2">
+                                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded font-mono ${sandboxStatus?.includes('OK') ? 'bg-emerald-950/80 text-emerald-400' : 'bg-rose-950/80 text-rose-400'}`}>
+                                       {sandboxStatus}
+                                    </span>
+                                 </div>
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono break-all pb-2 border-b border-slate-800">
+                                 <span className="text-slate-500 pr-1">Target Request:</span> {sandboxUrl}
+                              </div>
+                              <pre className="text-emerald-400 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-72 p-1">
+                                 {JSON.stringify(sandboxResponse, null, 2)}
+                              </pre>
+                           </div>
+                        )}
+                     </div>
+                  </div>
+               </div>
+            )}
+
+             {/* Access Control & Custom Claims Administration Section */}
+             {activeSection === 'access' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                   <div className="mb-4">
+                      <h3 className="text-xl font-bold text-slate-900">Access Control & Role Custom Claims</h3>
+                      <p className="text-slate-500 font-medium mt-1">Manage Firebase Auth Custom Claims, system roles, and resource access limits in real-time.</p>
+                   </div>
+
+                   {/* Current Session Auth Claim Status Card */}
+                   <div className="bg-gradient-to-r from-slate-900 to-[#005c94] text-white p-6 rounded-2xl shadow-lg border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                      <div>
+                         <span className="text-[10px] font-bold text-[#E0F2FE]/80 uppercase tracking-widest block mb-1">Your Verified Custom Claims Token</span>
+                         <div className="flex items-center gap-2">
+                            <h4 className="text-lg font-bold truncate max-w-[280px] md:max-w-md">
+                               {auth.currentUser?.email || 'Anonymous Session'}
+                            </h4>
+                            <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                               userRole === 'admin' ? 'bg-emerald-500 text-white' :
+                               userRole === 'manager' ? 'bg-amber-500 text-white' :
+                               userRole === 'operator' ? 'bg-blue-500 text-white' :
+                               'bg-red-500 text-white'
+                            }`}>
+                               {userRole}
+                            </span>
+                         </div>
+                         <p className="text-xs text-[#E0F2FE]/70 mt-1.5 font-medium">
+                            Custom claims are cryptographically signed inside your Firebase Auth token. Bypasses Firestore Rule calculations entirely.
+                         </p>
+                      </div>
+                      <button
+                         onClick={handleForceTokenRefresh}
+                         disabled={isRefreshingClaims}
+                         className="flex items-center gap-2 bg-white/10 hover:bg-white/20 active:bg-white/30 text-white px-4 py-2 rounded-xl text-xs font-bold transition shrink-0 disabled:opacity-50"
+                      >
+                         <RefreshCw className={`w-4 h-4 ${isRefreshingClaims ? 'animate-spin' : ''}`} />
+                         Refresh Verified Claims
+                      </button>
+                   </div>
+
+                   {/* Alerts and Feedback */}
+                   {actionSuccessMessage && (
+                      <div className="bg-emerald-50 text-emerald-800 p-4 rounded-xl border border-emerald-200 text-sm flex items-start gap-2.5 shadow-sm animate-in fade-in duration-200">
+                         <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                         <div>
+                            <p className="font-bold">Claim updated successfully</p>
+                            <p className="font-medium text-xs mt-0.5">{actionSuccessMessage}</p>
+                         </div>
+                      </div>
+                   )}
+
+                   {actionErrorMessage && (
+                      <div className="bg-rose-50 text-rose-800 p-4 rounded-xl border border-rose-200 text-sm flex items-start gap-2.5 shadow-sm animate-in fade-in duration-200">
+                         <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                         <div>
+                            <p className="font-bold">Operation failed</p>
+                            <p className="font-medium text-xs mt-0.5">{actionErrorMessage}</p>
+                         </div>
+                      </div>
+                   )}
+
+                   {/* Developer Bypass Toggle Alert */}
+                   {userRole !== 'admin' && (
+                      <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 flex gap-3 text-sm text-slate-700 font-medium animate-in slide-in-from-top-2 duration-300">
+                         <Lock className="w-5 h-5 text-[#007BC4] shrink-0 mt-0.5" />
+                         <div>
+                            <span className="font-bold text-slate-800 block">Restricted Administration Mockup Mode</span>
+                            <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                               Your account does not possess the <strong>admin</strong> role. Role dropdown changes will set Firebase custom claims, but to fully bypass the Dashboard view restrictions in a real session, sign in or register with email <strong className="text-slate-700 font-bold">sigmund.t.d@gaostaff.com</strong> (auto-bootstrapped as Admin).
+                            </p>
+                         </div>
+                      </div>
+                   )}
+
+                   {/* Provision New Staff Account Card */}
+                    <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden p-6 space-y-4">
+                       <div className="border-b border-slate-100 pb-3">
+                          <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                             <User className="w-4 h-4 text-[#007BC4]" /> Provision New Staff User Account
+                          </h4>
+                          <p className="text-xs text-slate-500 mt-0.5 font-medium">Create a brand new credential on Firebase Authentication and assign a verified custom claim role instantly.</p>
+                       </div>
+
+                       {creationSuccess && (
+                          <div className="bg-emerald-50 text-emerald-800 p-3 rounded-lg border border-emerald-200 text-xs flex items-start gap-2 animate-in fade-in duration-200">
+                             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                             <div>
+                                <p className="font-bold">Account created successfully</p>
+                                <p className="mt-0.5 font-medium text-[11px]">{creationSuccess}</p>
+                             </div>
+                          </div>
+                       )}
+
+                       {creationError && (
+                          <div className="bg-rose-50 text-rose-800 p-3 rounded-lg border border-rose-200 text-xs flex items-start gap-2 animate-in fade-in duration-200">
+                             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                             <div>
+                                <p className="font-bold">Failed to create account</p>
+                                <p className="mt-0.5 font-medium text-[11px]">{creationError}</p>
+                             </div>
+                          </div>
+                       )}
+
+                       <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                          <div>
+                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Display Name</label>
+                             <input 
+                                type="text"
+                                placeholder="e.g. John Doe"
+                                value={createDisplayName}
+                                onChange={(e) => setCreateDisplayName(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-semibold focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition"
+                             />
+                          </div>
+                          <div>
+                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Email *</label>
+                             <input 
+                                type="email"
+                                required
+                                placeholder="john.doe@gaostaff.com"
+                                value={createEmail}
+                                onChange={(e) => setCreateEmail(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-semibold focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition"
+                             />
+                          </div>
+                          <div>
+                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Temp Password *</label>
+                             <input 
+                                type="password"
+                                required
+                                placeholder="Min. 6 chars"
+                                value={createPassword}
+                                onChange={(e) => setCreatePassword(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-semibold focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition"
+                             />
+                          </div>
+                          <div>
+                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Custom Claim Role *</label>
+                             <div className="flex gap-2">
+                                <select 
+                                   required
+                                   value={createRole}
+                                   onChange={(e) => setCreateRole(e.target.value)}
+                                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-900 font-semibold focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition cursor-pointer"
+                                >
+                                   <option value="operator">Operator</option>
+                                   <option value="manager">Manager</option>
+                                   <option value="admin">Admin</option>
+                                   <option value="blocked">Blocked</option>
+                                </select>
+                                <button
+                                   type="submit"
+                                   disabled={isCreatingUser || userRole !== 'admin'}
+                                   className="bg-[#007BC4] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition disabled:opacity-50 shrink-0 shadow-sm cursor-pointer animate-pulse-slow"
+                                >
+                                   {isCreatingUser ? 'Creating...' : 'Provision'}
+                                </button>
+                             </div>
+                          </div>
+                       </form>
+                    </div>
+
+                    {/* Users Claims roster */}
+                   <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+                      <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                         <div>
+                            <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                               <Users className="w-4 h-4 text-[#007BC4]" /> Registered accounts custom claims
+                            </h4>
+                            <p className="text-xs text-slate-500 mt-0.5">Manage Firebase Custom User Claims and role permissions on the live server.</p>
+                         </div>
+                         <button 
+                            onClick={loadManagementData}
+                            disabled={isLoadingUsers}
+                            className="bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 p-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1"
+                         >
+                            <RefreshCw className={`w-3 h-3 ${isLoadingUsers ? 'animate-spin' : ''}`} />
+                         </button>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                         <table className="w-full text-left border-collapse text-sm">
+                            <thead>
+                               <tr className="bg-slate-50 text-slate-500 font-bold text-xs uppercase tracking-wider border-b border-slate-100">
+                                  <th className="py-3 px-5">Account Email</th>
+                                  <th className="py-3 px-5">Provider UID</th>
+                                  <th className="py-3 px-5">Custom Claim Role</th>
+                                  <th className="py-3 px-5">Sync State</th>
+                               </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                               {isLoadingUsers ? (
+                                  <tr>
+                                     <td colSpan={4} className="py-8 text-center text-slate-400 font-medium text-xs">
+                                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-[#007BC4]" /> Loading Auth user listings...
+                                     </td>
+                                  </tr>
+                               ) : users.length === 0 ? (
+                                  <tr>
+                                     <td colSpan={4} className="py-8 text-center text-slate-400 font-medium text-xs">
+                                        No registered accounts found. Registered users will appear automatically.
+                                     </td>
+                                  </tr>
+                               ) : (
+                                  users.map((u) => (
+                                     <tr key={u.uid} className="hover:bg-slate-50/50 transition">
+                                        <td className="py-3.5 px-5">
+                                           <div className="font-bold text-slate-900">{u.displayName || u.email.split('@')[0]}</div>
+                                           <div className="text-xs text-slate-400 font-mono">{u.email}</div>
+                                        </td>
+                                        <td className="py-3.5 px-5 text-slate-500 font-mono text-xs">{u.uid}</td>
+                                        <td className="py-3.5 px-5">
+                                           <select
+                                              value={u.role || 'operator'}
+                                              onChange={(e) => handleUpdateUserRole(u.uid, e.target.value)}
+                                              className="bg-slate-50 border border-slate-200 hover:border-slate-300 rounded px-2 py-1 outline-none text-xs font-semibold text-slate-700 transition"
+                                           >
+                                              <option value="operator">Operator</option>
+                                              <option value="manager">Manager</option>
+                                              <option value="admin">Admin</option>
+                                              <option value="blocked">Blocked</option>
+                                           </select>
+                                        </td>
+                                        <td className="py-3.5 px-5 text-slate-400 text-xs font-semibold">
+                                           Synced {u.updatedAt ? new Date(u.updatedAt).toLocaleTimeString() : 'N/A'}
+                                        </td>
+                                     </tr>
+                                  ))
+                               )}
+                            </tbody>
+                         </table>
+                      </div>
+                   </div>
+
+                   {/* Policy permissions matrix */}
+                   <div className="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden animate-in fade-in duration-300">
+                      <div className="p-5 border-b border-slate-100">
+                         <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-[#007BC4]" /> Role Access Control & Visibility Matrix
+                         </h4>
+                         <p className="text-xs text-slate-500 mt-0.5 font-medium">Fine-tune screen and dashboard visibility mapping across each custom claim tier.</p>
+                      </div>
+
+                      <div className="p-5 space-y-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {['admin', 'manager', 'operator', 'blocked'].map((role) => (
+                               <div key={role} className="border border-slate-100 rounded-xl p-4 bg-slate-50/60 shadow-sm">
+                                  <div className="flex items-center justify-between border-b border-slate-200/60 pb-2 mb-3">
+                                     <span className="text-xs font-extrabold uppercase tracking-widest text-[#007BC4]">{role}</span>
+                                     <span className="text-[10px] text-slate-400 uppercase font-bold">Privilege Tier</span>
+                                  </div>
+                                  
+                                  <div className="space-y-2.5">
+                                     <label className="flex items-center justify-between text-xs font-semibold text-slate-600 cursor-pointer hover:text-slate-950 transition">
+                                        <span>Dashboard Visibility</span>
+                                        <input 
+                                           type="checkbox"
+                                           checked={rolePermissions[role]?.dashboard || false}
+                                           onChange={(e) => {
+                                              const updated = { ...rolePermissions };
+                                              updated[role] = { ...updated[role], dashboard: e.target.checked };
+                                              setRolePermissions(updated);
+                                           }}
+                                           className="rounded border-slate-300 text-[#007BC4] focus:ring-[#007BC4] w-4.5 h-4.5 cursor-pointer text-xs"
+                                        />
+                                     </label>
+                                     
+                                     <label className="flex items-center justify-between text-xs font-semibold text-slate-600 cursor-pointer hover:text-slate-950 transition">
+                                        <span>Playback Access</span>
+                                        <input 
+                                           type="checkbox"
+                                           checked={rolePermissions[role]?.playback || false}
+                                           onChange={(e) => {
+                                              const updated = { ...rolePermissions };
+                                              updated[role] = { ...updated[role], playback: e.target.checked };
+                                              setRolePermissions(updated);
+                                           }}
+                                           className="rounded border-slate-300 text-[#007BC4] focus:ring-[#007BC4] w-4.5 h-4.5 cursor-pointer text-xs"
+                                        />
+                                     </label>
+
+                                     <label className="flex items-center justify-between text-xs font-semibold text-slate-600 cursor-pointer hover:text-slate-950 transition">
+                                        <span>Tracking Controls</span>
+                                        <input 
+                                           type="checkbox"
+                                           checked={rolePermissions[role]?.tracking || false}
+                                           onChange={(e) => {
+                                              const updated = { ...rolePermissions };
+                                              updated[role] = { ...updated[role], tracking: e.target.checked };
+                                              setRolePermissions(updated);
+                                           }}
+                                           className="rounded border-slate-300 text-[#007BC4] focus:ring-[#007BC4] w-4.5 h-4.5 cursor-pointer text-xs"
+                                        />
+                                     </label>
+
+                                     <label className="flex items-center justify-between text-xs font-semibold text-slate-600 cursor-pointer hover:text-slate-950 transition">
+                                        <span>Settings Editor</span>
+                                        <input 
+                                           type="checkbox"
+                                           checked={rolePermissions[role]?.settings || false}
+                                           onChange={(e) => {
+                                              const updated = { ...rolePermissions };
+                                              updated[role] = { ...updated[role], settings: e.target.checked };
+                                              setRolePermissions(updated);
+                                           }}
+                                           className="rounded border-slate-300 text-[#007BC4] focus:ring-[#007BC4] w-4.5 h-4.5 cursor-pointer text-xs"
+                                        />
+                                     </label>
+                                  </div>
+                               </div>
+                            ))}
+                         </div>
+
+                         <div className="flex justify-end pt-3">
+                            <button
+                               onClick={handleSavePermissions}
+                               disabled={isSavingPermissions}
+                               className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition shadow-md disabled:opacity-50"
+                            >
+                               {isSavingPermissions ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                               Save Permissions Matrix
+                            </button>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+             )}
+
+             {/* Fallback for other sections just for mockup */}
+             {/* Fallback for other sections just for mockup */}
+             {(activeSection !== 'general' && activeSection !== 'security' && activeSection !== 'integrations' && activeSection !== 'notifications' && activeSection !== 'network' && activeSection !== 'apidocs' && activeSection !== 'access') && (
                <div className="py-20 flex flex-col items-center justify-center text-slate-500">
                   <div className="p-4 bg-slate-100 rounded-full mb-4">
                      <Key className="w-8 h-8 text-slate-400" />

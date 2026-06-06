@@ -72,6 +72,7 @@ export interface AIAlert {
   type: 'security' | 'warning' | 'info';
   message: string;
   timestamp: Date;
+  resolved?: boolean;
 }
 
 const ZONES: Record<string, { x: number; y: number; width: number; height: number }> = {

@@ -13,7 +13,12 @@ export function startGaoSync() {
   syncInterval = setInterval(async () => {
     try {
       const tags = await gaoApi.getTagsInRealtime();
-      if (!tags || tags.length === 0) return;
+      if (!tags || !Array.isArray(tags) || tags.length === 0) {
+        if (tags && !Array.isArray(tags)) {
+          console.warn('Realtime tags synchronization returned non-array:', tags);
+        }
+        return;
+      }
       
       const batchPromises = tags.map(async (tag: RealtimeTag) => {
         const tagRef = doc(db, 'live_tags', tag.TagID);

@@ -5,23 +5,32 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    match /alerts/{alertId} {
-      allow read: if true;
-      allow write: if true;
+    match /alerts/{document=**} {
+      allow read, write: if true;
     }
 
-    match /devices/{deviceId} {
-      allow read: if true;
-      allow write: if true;
+    match /devices/{document=**} {
+      allow read, write: if true;
     }
 
-    match /live_tags/{tagId} {
-      allow read: if true;
-      allow write: if true;
+    match /live_tags/{document=**} {
+      allow read, write: if true;
     }
+
+    match /floorplans/{document=**} {
+      allow read, write: if true;
+    }
+
+    match /registered_people/{document=**} {
+      allow read, write: if true;
+    }
+
+    match /tag_history/{document=**} {
+      allow read, write: if true;
+    }
+
     match /settings/{document=**} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
   }
 }

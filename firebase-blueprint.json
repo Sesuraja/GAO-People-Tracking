@@ -50,6 +50,23 @@
         "apiUrl": { "type": "string" },
         "demoMode": { "type": "boolean" }
       }
+    },
+    "DashboardLayout": {
+      "title": "Dashboard Layout",
+      "description": "User customized dashboard layout configuration",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "kpis": {
+          "type": "array",
+          "description": "Array of KPI configurations"
+        },
+        "panels": {
+          "type": "array",
+          "description": "Array of panel configurations"
+        },
+        "updatedAt": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -64,6 +81,10 @@
     "/live_tags/{tagId}": {
       "schema": "LiveTag",
       "description": "Currently active tags"
+    },
+    "/settings/dashboard_{userId}": {
+      "schema": "DashboardLayout",
+      "description": "User specific dashboard layout config"
     },
     "/settings/{document}": {
       "schema": "Setting",
