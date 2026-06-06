@@ -56,7 +56,7 @@ export type PresenceState = 'MOVING' | 'IDLE' | 'EXITED';
 export interface Person {
   id: string;
   name: string;
-  role: 'Employee' | 'Visitor' | 'Security';
+  role: 'Employee' | 'Visitor' | 'Security' | string;
   currentZone: string;
   presenceState: PresenceState;
   dwellTime: number; // in seconds
@@ -95,6 +95,8 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
   const idleAlertThresholdRef = useRef(3600);
   const occupancyLimitsRef = useRef<Record<string, number>>({});
   const alertedZonesRef = useRef<Record<string, number>>({});
+  
+  const registeredPeopleRef = useRef<Record<string, {name: string, role: string}>>({});
 
   // Helper to add fake alerts in demo mode
   const addDemoAlert = (type: 'security' | 'warning' | 'info', message: string) => {
@@ -112,7 +114,20 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
         if (data.occupancyThresholds) occupancyLimitsRef.current = data.occupancyThresholds;
       }
     });
-    return () => unsubscribeSettings();
+    
+    const registeredQuery = query(collection(db, 'registered_people'));
+    const unsubscribeRegistered = onSnapshot(registeredQuery, (snapshot) => {
+       const mapped: Record<string, {name: string, role: string}> = {};
+       snapshot.forEach(doc => {
+          mapped[doc.id] = { name: doc.data().name, role: doc.data().role || 'Employee' };
+       });
+       registeredPeopleRef.current = mapped;
+    });
+    
+    return () => {
+       unsubscribeSettings();
+       unsubscribeRegistered();
+    };
   }, []);
 
   useEffect(() => {
@@ -161,12 +176,16 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
               let targetZone = tag.Location;
               
               if (!ZONES[targetZone]) targetZone = 'Entrance'; 
+              
+              const registered = registeredPeopleRef.current[tag.TagID];
+              const pName = registered ? registered.name : `Tag ${tag.TagID.substring(0, 6).toUpperCase()}`;
+              const pRole = registered ? registered.role : 'Visitor';
 
               if (!p) {
                   p = {
                     id: tag.TagID,
-                    name: `Tag ${tag.TagID.substring(0, 6).toUpperCase()}`,
-                    role: 'Visitor',
+                    name: pName,
+                    role: pRole,
                     currentZone: targetZone,
                     presenceState: 'IDLE',
                     dwellTime: 0,
@@ -185,6 +204,8 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
 
               } else {
                   p.lastSeen = new Date(tag.Timestamp + "Z");
+                  p.name = pName;
+                  p.role = pRole;
                   if (p.currentZone !== targetZone) {
                       p.currentZone = targetZone;
                       p.dwellTime = 0;
@@ -218,6 +239,12 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
            // Calculate occupancy bounds 
            const currentOccupancy: Record<string, number> = {};
            nextPeople.forEach(p => {
+              // Also sync name/role if it updated
+              const registered = registeredPeopleRef.current[p.id];
+              if (registered) {
+                 p.name = registered.name;
+                 p.role = registered.role;
+              }
               currentOccupancy[p.currentZone] = (currentOccupancy[p.currentZone] || 0) + 1;
            });
 
@@ -305,6 +332,12 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
            // Calculate occupancy bounds 
            const currentOccupancy: Record<string, number> = {};
            nextPeople.forEach(p => {
+              // Mock: if there's an override in registeredPeople, use it
+              const registered = registeredPeopleRef.current[p.id];
+              if (registered) {
+                 p.name = registered.name;
+                 p.role = registered.role;
+              }
               currentOccupancy[p.currentZone] = (currentOccupancy[p.currentZone] || 0) + 1;
            });
 

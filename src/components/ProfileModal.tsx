@@ -1,8 +1,13 @@
 import React from 'react';
 import { X, User, Mail, Shield, Key, LogOut } from 'lucide-react';
+import { auth } from '../lib/firebase';
 
-export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+export default function ProfileModal({ isOpen, onClose, onLogout }: { isOpen: boolean, onClose: () => void, onLogout: () => void }) {
   if (!isOpen) return null;
+  
+  const user = auth.currentUser;
+  const email = user?.email || 'Demo User';
+  const initial = email.charAt(0).toUpperCase();
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -15,11 +20,11 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean, onC
               <X className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-white border-4 border-white/20 flex items-center justify-center text-xl font-black text-[#007BC4] shadow-md">
-                AD
+              <div className="w-16 h-16 rounded-full bg-white border-4 border-white/20 flex items-center justify-center text-xl font-black text-[#007BC4] shadow-md uppercase">
+                {initial}
               </div>
               <div className="flex flex-col">
-                <h2 className="text-xl font-bold text-white tracking-tight">Admin User</h2>
+                <h2 className="text-xl font-bold text-white tracking-tight">{email.split('@')[0]}</h2>
                 <span className="text-sm font-medium text-white/80 bg-white/10 px-2 py-0.5 rounded mt-1 inline-block border border-white/20">System Administrator</span>
               </div>
             </div>
@@ -33,7 +38,7 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean, onC
                  </div>
                  <div className="flex flex-col">
                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address</span>
-                   <span className="text-sm font-semibold text-slate-900">admin@gaosystems.com</span>
+                   <span className="text-sm font-semibold text-slate-900">{email}</span>
                  </div>
                </div>
                
@@ -52,17 +57,17 @@ export default function ProfileModal({ isOpen, onClose }: { isOpen: boolean, onC
                    <Key className="w-4 h-4" />
                  </div>
                  <div className="flex flex-col">
-                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Last Login</span>
-                   <span className="text-sm font-semibold text-slate-900">Today, 08:32 AM IP: 10.0.1.45</span>
+                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Authentication</span>
+                   <span className="text-sm font-semibold text-slate-900">{user ? 'Firebase Auth' : 'Local Demo'}</span>
                  </div>
                </div>
             </div>
 
             <div className="border-t border-slate-100 pt-6 flex flex-col gap-2">
-               <button className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-[#007BC4] transition">
-                 <User className="w-4 h-4" /> Edit Profile
-               </button>
-               <button className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg border border-transparent bg-rose-50 text-sm font-bold text-rose-600 hover:bg-rose-100 hover:text-rose-700 transition">
+               <button 
+                 onClick={() => { onClose(); onLogout(); }}
+                 className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg border border-transparent bg-rose-50 text-sm font-bold text-rose-600 hover:bg-rose-100 hover:text-rose-700 transition"
+               >
                  <LogOut className="w-4 h-4" /> Sign Out
                </button>
             </div>

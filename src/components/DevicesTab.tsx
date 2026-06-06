@@ -1,23 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Radio, Wifi, WifiOff, AlertCircle, RefreshCw, MoreVertical, Plus } from 'lucide-react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
-const MOCK_DEVICES = [
-  { id: 'RD-001', name: 'Main Entrance Reader', location: 'Lobby', type: 'UHF RFID', status: 'online', ip: '10.0.0.12', lastPing: 'Just now', uptime: '45d 12h' },
-  { id: 'RD-002', name: 'Server Room Door', location: 'Server Room', type: 'UHF RFID', status: 'online', ip: '10.0.0.13', lastPing: 'Just now', uptime: '12d 4h' },
-  { id: 'RD-003', name: 'Loading Dock A', location: 'Dock', type: 'UHF RFID', status: 'warning', ip: '10.0.0.14', lastPing: '2 mins ago', uptime: '5d 1h' },
-  { id: 'RD-004', name: 'Elevator Lobby 1F', location: 'Floor 1', type: 'BLE Beacon', status: 'online', ip: '10.0.0.21', lastPing: 'Just now', uptime: '150d 2h' },
-  { id: 'RD-005', name: 'Emergency Exit West', location: 'Stairwell B', type: 'UHF RFID', status: 'offline', ip: '10.0.0.22', lastPing: '3 hrs ago', uptime: '0d 0h' },
-  { id: 'RD-006', name: 'Cafeteria Entrance', location: 'Floor 2', type: 'UHF RFID', status: 'online', ip: '10.0.0.25', lastPing: 'Just now', uptime: '32d 5h' },
-];
+interface Device {
+  id: string;
+  name: string;
+  location: string;
+  type: string;
+  status: 'online' | 'offline' | 'warning';
+  ip: string;
+  lastPing: string;
+  uptime: string;
+}
 
 export default function DevicesTab() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [devices] = useState(MOCK_DEVICES);
+  const [devices, setDevices] = useState<Device[]>([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'floorplans'), (snapshot) => {
+      const allDevices: Device[] = [];
+      snapshot.forEach(doc => {
+        const floorPlan = doc.data();
+        if (floorPlan.devices && Array.isArray(floorPlan.devices)) {
+          floorPlan.devices.forEach((dev: any) => {
+            allDevices.push({
+              id: dev.mac || dev.id,
+              name: dev.name,
+              location: floorPlan.name,
+              type: 'UHF RFID',
+              status: 'online', // Simplified for demo
+              ip: 'DHCP assigned',
+              lastPing: 'Just now',
+              uptime: '2d 4h'
+            });
+          });
+        }
+      });
+      setDevices(allDevices);
+    });
+    return () => unsub();
+  }, []);
 
   const filteredDevices = devices.filter(d => 
     d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     d.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const onlineCount = devices.filter(d => d.status === 'online').length;
+  const warningCount = devices.filter(d => d.status === 'warning').length;
+  const offlineCount = devices.filter(d => d.status === 'offline').length;
 
   return (
     <div className="flex flex-col gap-6 w-full h-full p-6 bg-slate-50">
@@ -37,9 +70,6 @@ export default function DevicesTab() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md border border-transparent transition">
-            <Plus className="w-4 h-4" /> Add Device
-          </button>
         </div>
       </div>
 
@@ -50,7 +80,7 @@ export default function DevicesTab() {
             </div>
             <div>
                <div className="text-sm font-semibold text-slate-500">Online Devices</div>
-               <div className="text-2xl font-bold text-slate-900">28</div>
+               <div className="text-2xl font-bold text-slate-900">{onlineCount}</div>
             </div>
          </div>
          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-4">
@@ -59,7 +89,7 @@ export default function DevicesTab() {
             </div>
             <div>
                <div className="text-sm font-semibold text-slate-500">Needs Attention</div>
-               <div className="text-2xl font-bold text-slate-900">3</div>
+               <div className="text-2xl font-bold text-slate-900">{warningCount}</div>
             </div>
          </div>
          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-4">
@@ -68,7 +98,7 @@ export default function DevicesTab() {
             </div>
             <div>
                <div className="text-sm font-semibold text-slate-500">Offline Devices</div>
-               <div className="text-2xl font-bold text-slate-900">1</div>
+               <div className="text-2xl font-bold text-slate-900">{offlineCount}</div>
             </div>
          </div>
       </div>

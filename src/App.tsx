@@ -143,10 +143,14 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
              className="bg-slate-50 p-3 flex-1 rounded-xl flex items-center justify-between cursor-pointer border border-slate-200 hover:bg-slate-100 transition shadow-sm"
            >
              <div className="flex items-center gap-3">
-               <div className="w-8 h-8 rounded-full bg-[#007BC4] flex items-center justify-center text-xs font-bold text-white shrink-0">AD</div>
+               <div className="w-8 h-8 rounded-full bg-[#007BC4] flex items-center justify-center text-xs font-bold text-white shrink-0 uppercase">
+                {auth.currentUser?.email ? auth.currentUser.email.charAt(0) : 'AD'}
+               </div>
                <div className="flex flex-col min-w-0 pr-2">
-                 <span className="text-sm font-semibold text-slate-900 truncate">Admin User</span>
-                 <span className="text-[10px] text-slate-500">GAO Admin</span>
+                 <span className="text-sm font-semibold text-slate-900 truncate">
+                  {auth.currentUser?.email ? auth.currentUser.email.split('@')[0] : 'Admin User'}
+                 </span>
+                 <span className="text-[10px] text-slate-500">System Operator</span>
                </div>
              </div>
            </div>
@@ -182,7 +186,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
         </div>
       </main>
 
-      <ProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />
+      <ProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} onLogout={onLogout} />
       <ChatBot />
     </div>
   );
