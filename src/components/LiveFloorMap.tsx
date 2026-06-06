@@ -1,9 +1,10 @@
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Person, Zone } from '../lib/simulation';
 import { useMemo, useState, useEffect } from 'react';
 import { Layers } from 'lucide-react';
+import floorplanImage from '../assets/images/facility_floorplan_2d_1780726630123.png';
 
-export default function LiveFloorMap({ people, zones, highlightedPersonId, initialFocusZone }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, initialFocusZone?: string | null }) {
+export default function LiveFloorMap({ people, zones, highlightedPersonId, initialFocusZone, floorplanUrl }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, initialFocusZone?: string | null, floorplanUrl?: string | null }) {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [selectedZone, setSelectedZone] = useState<string | null>(initialFocusZone || null);
 
@@ -23,8 +24,15 @@ export default function LiveFloorMap({ people, zones, highlightedPersonId, initi
     return { name: selectedZone, occupants, avgDwell: Math.round(avgDwell) };
   }, [selectedZone, people]);
 
+  const activeFloorplan = floorplanUrl || floorplanImage;
+
   return (
     <div className="w-full h-full relative bg-transparent overflow-hidden flex flex-col md:flex-row items-stretch justify-center pr-0 md:pr-4">
+      {/* Background Image Floorplan */}
+      <div 
+        className="absolute inset-0 z-0 opacity-40 dark:opacity-20 transition-opacity duration-300" 
+        style={{ backgroundImage: `url(${activeFloorplan})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }} 
+      />
       {/* Background grid pattern */}
       <div className="absolute inset-0 z-0 opacity-10" style={{ backgroundImage: 'linear-gradient(#007BC4 1px, transparent 1px), linear-gradient(90deg, #007BC4 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
@@ -120,6 +128,7 @@ export default function LiveFloorMap({ people, zones, highlightedPersonId, initi
         })}
 
         {/* Draw Tracked People */}
+        <AnimatePresence>
         {!showHeatmap && people.map(p => {
           const isWarning = p.role === 'Visitor' && p.currentZone === 'Server Room';
           const isHighlighted = highlightedPersonId === p.id;
@@ -128,14 +137,20 @@ export default function LiveFloorMap({ people, zones, highlightedPersonId, initi
           return (
             <motion.div 
               key={p.id}
+              layout="position"
               className="absolute z-20"
-              initial={false}
+              initial={{ scale: 0, opacity: 0, x: "-50%", y: "-50%" }}
               animate={{ 
                 left: `${p.x}%`, 
-                top: `${p.y}%` 
+                top: `${p.y}%`,
+                scale: 1,
+                opacity,
+                x: "-50%",
+                y: "-50%"
               }}
-              transition={{ type: 'spring', damping: 20, stiffness: 50 }}
-              style={{ transform: 'translate(-50%, -50%)', opacity, zIndex: isHighlighted ? 30 : 20 }}
+              exit={{ scale: 0, opacity: 0, x: "-50%", y: "-50%" }}
+              transition={{ type: 'spring', damping: 25, stiffness: 120, mass: 0.5 }}
+              style={{ zIndex: isHighlighted ? 30 : 20 }}
             >
               <div className="relative group">
                 <div className={`w-4 h-4 rounded-full border-[2.5px] shadow-[0_0_10px_rgba(0,0,0,0.5)] ${isWarning ? 'bg-rose-500 border-white shadow-[0_0_15px_rgba(244,63,94,1)] animate-pulse' : p.role === 'Visitor' ? 'bg-amber-400 border-amber-900' : p.role === 'Security' ? 'bg-[#10b981] border-emerald-900' : 'bg-[#007BC4] border-blue-900'}`} />
@@ -159,6 +174,7 @@ export default function LiveFloorMap({ people, zones, highlightedPersonId, initi
             </motion.div>
           );
         })}
+        </AnimatePresence>
       </div>
 
       {/* Zone Details Side Panel */}

@@ -1,15 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Person } from '../lib/simulation';
 import LiveFloorMap from './LiveFloorMap';
 import { useGaoRealtime } from '../lib/useGaoApi';
 import { Radio, MapPin, Clock } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export default function LiveTrackingTab({ people, zones, highlightedPersonId, isLoading: mainIsLoading }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, isLoading?: boolean }) {
   const [selectedPerson, setSelectedPerson] = useState<string | null>(highlightedPersonId || null);
   const location = useLocation();
   const focusZone = location.state?.focusZone || null;
+  const [floorplanUrl, setFloorplanUrl] = useState<string | null>(null);
   
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'floorplans'), (snapshot) => {
+      const plans = snapshot.docs.map(doc => doc.data());
+      if (plans.length > 0 && plans[0].imageUrl) {
+        setFloorplanUrl(plans[0].imageUrl);
+      } else {
+        setFloorplanUrl(null);
+      }
+    });
+    return () => unsub();
+  }, []);
+
   // Real-time data from API
   const { tags, error, isLoading: feedIsLoading } = useGaoRealtime(2000);
 
@@ -31,7 +46,13 @@ export default function LiveTrackingTab({ people, zones, highlightedPersonId, is
                </div>
              </div>
            ) : (
-             <LiveFloorMap people={people} zones={zones} highlightedPersonId={selectedPerson || highlightedPersonId} initialFocusZone={focusZone} />
+             <LiveFloorMap 
+               people={people} 
+               zones={zones} 
+               highlightedPersonId={selectedPerson || highlightedPersonId} 
+               initialFocusZone={focusZone} 
+               floorplanUrl={floorplanUrl} 
+             />
            )}
         </div>
       </div>

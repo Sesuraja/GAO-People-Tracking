@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { gaoApi, RealtimeTag } from './gaoApi';
 import { db, auth } from './firebase';
-import { collection, addDoc, query, orderBy, limit, onSnapshot, doc } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, limit, onSnapshot, doc, serverTimestamp } from 'firebase/firestore';
 
 enum OperationType {
   CREATE = 'create',
@@ -100,8 +100,19 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
 
   // Helper to add fake alerts in demo mode
   const addDemoAlert = (type: 'security' | 'warning' | 'info', message: string) => {
-     setAlerts(prev => [{ id: Math.random().toString(), type, message, timestamp: new Date() }, ...prev].slice(0, 15));
+     const newAlert: AIAlert = { id: Math.random().toString(), type, message, timestamp: new Date() };
+     setAlerts(prev => [newAlert, ...prev].slice(0, 15));
+     
+     // In real mode, persist to db instead of just local state (although simulation runs both sometimes)
+     addDoc(collection(db, 'alerts'), {
+        type,
+        message,
+        timestamp: serverTimestamp(),
+        resolved: false
+     }).catch(() => {}); // handle silent failure
   };
+
+const [dynamicZones, setDynamicZones] = useState<Record<string, { x: number; y: number; width: number; height: number }>>(ZONES);
 
   useEffect(() => {
     // Listen to settings changes globally
@@ -113,6 +124,43 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
         if (data.idleAlertThreshold !== undefined) idleAlertThresholdRef.current = data.idleAlertThreshold;
         if (data.occupancyThresholds) occupancyLimitsRef.current = data.occupancyThresholds;
       }
+    });
+
+    // Listen to real alerts from the database
+    const alertQuery = query(collection(db, 'alerts'), orderBy('timestamp', 'desc'), limit(50));
+    const unsubscribeAlerts = onSnapshot(alertQuery, (snapshot) => {
+       const fetchedAlerts: AIAlert[] = [];
+       snapshot.forEach(doc => {
+          const data = doc.data();
+          fetchedAlerts.push({
+             id: doc.id,
+             type: data.type,
+             message: data.message,
+             timestamp: data.timestamp?.toDate() || new Date(),
+             resolved: data.resolved
+          });
+       });
+       setAlerts(fetchedAlerts);
+    });
+    
+    // Listen to floor plans to generate zones based on devices placed
+    const floorplansQuery = query(collection(db, 'floorplans'));
+    const unsubscribeFloorplans = onSnapshot(floorplansQuery, (snapshot) => {
+       const newZones: Record<string, {x:number, y:number, width:number, height:number}> = { ...ZONES };
+       snapshot.forEach(doc => {
+          const plan = doc.data();
+          if (plan.devices && Array.isArray(plan.devices)) {
+             plan.devices.forEach((dev: any) => {
+                newZones[dev.name] = {
+                   x: dev.x - 10, // draw zone around center
+                   y: dev.y - 10,
+                   width: 20,
+                   height: 20
+                };
+             });
+          }
+       });
+       setDynamicZones(newZones);
     });
     
     const registeredQuery = query(collection(db, 'registered_people'));
@@ -126,6 +174,8 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
     
     return () => {
        unsubscribeSettings();
+       unsubscribeAlerts();
+       unsubscribeFloorplans();
        unsubscribeRegistered();
     };
   }, []);
@@ -175,7 +225,7 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
                 let p = nextPeople.find(x => x.id === tag.TagID);
                 let targetZone = tag.Location;
                 
-                if (!ZONES[targetZone]) targetZone = 'Entrance'; 
+                if (!dynamicZones[targetZone]) targetZone = 'Entrance'; 
                 
                 const registered = registeredPeopleRef.current[tag.TagID];
                 const pName = registered ? registered.name : `Tag ${tag.TagID.substring(0, 6).toUpperCase()}`;
@@ -189,8 +239,8 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
                       currentZone: targetZone,
                       presenceState: 'IDLE',
                       dwellTime: 0,
-                      x: ZONES[targetZone].x + ZONES[targetZone].width / 2,
-                      y: ZONES[targetZone].y + ZONES[targetZone].height / 2,
+                      x: dynamicZones[targetZone].x + dynamicZones[targetZone].width / 2,
+                      y: dynamicZones[targetZone].y + dynamicZones[targetZone].height / 2,
                       lastSeen: new Date(tag.Timestamp + "Z"),
                       trail: []
                     };
@@ -223,8 +273,8 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
                         p.presenceState = 'MOVING';
                         
                         // Move avatar to center of new zone
-                        p.x = ZONES[targetZone].x + ZONES[targetZone].width / 2;
-                        p.y = ZONES[targetZone].y + ZONES[targetZone].height / 2;
+                        p.x = dynamicZones[targetZone].x + dynamicZones[targetZone].width / 2;
+                        p.y = dynamicZones[targetZone].y + dynamicZones[targetZone].height / 2;
                         
                         // Store real history log
                         addDoc(collection(db, 'tag_history'), {
@@ -282,7 +332,7 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
                p.trail.push({ x: p.x, y: p.y });
                if (p.trail.length > 15) p.trail.shift();
 
-               const zoneRect = ZONES[p.currentZone] || ZONES['Entrance'];
+               const zoneRect = dynamicZones[p.currentZone] || dynamicZones['Entrance'] || { x: 50, y: 50, width: 2, height: 2 };
                const targetX = zoneRect.x + Math.random() * zoneRect.width;
                const targetY = zoneRect.y + Math.random() * zoneRect.height;
                
@@ -340,7 +390,7 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
          if (!isMounted) return;
          setPeople((prev) => {
            const nextPeople = [...prev];
-           const zoneKeys = Object.keys(ZONES);
+           const zoneKeys = Object.keys(dynamicZones);
            
            // Calculate occupancy bounds 
            const currentOccupancy: Record<string, number> = {};
@@ -388,7 +438,7 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
                 }
              }
 
-             const zoneRect = ZONES[p.currentZone] || ZONES['Entrance'];
+             const zoneRect = dynamicZones[p.currentZone] || dynamicZones['Entrance'] || { x: 50, y: 50, width: 2, height: 2 };
              const targetX = zoneRect.x + 2 + Math.random() * (zoneRect.width - 4);
              const targetY = zoneRect.y + 2 + Math.random() * (zoneRect.height - 4);
              
@@ -427,6 +477,6 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
     };
   }, [mode]);
 
-  return { people, alerts, ZONES, isLoading };
+  return { people, alerts, ZONES: dynamicZones, isLoading };
 }
 

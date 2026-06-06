@@ -1,10 +1,14 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useContext } from 'react';
+import { AppModeContext } from '../App';
 import { Person, Zone } from '../lib/simulation';
 import { Play, Pause, FastForward, SkipBack, Search, Database } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { useGaoHistory } from '../lib/useGaoApi';
+import { collection, query, orderBy, limit, getDocs, getCountFromServer } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export default function PlaybackTab({ people, zones }: { people: Person[], zones: any }) {
+  const { mode } = useContext(AppModeContext);
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeIndex, setTimeIndex] = useState(0);
   const [speed, setSpeed] = useState(1);
@@ -12,10 +16,61 @@ export default function PlaybackTab({ people, zones }: { people: Person[], zones
   const [highlightedPersonId, setHighlightedPersonId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'map'|'api'>('api');
 
-  // GAO API History fetching
+  // History state
   const [skip, setSkip] = useState(0);
   const take = 20;
-  const { records, totalCount, isLoading, error } = useGaoHistory(skip, take);
+  
+  // Real Firestore tracking data
+  const [dbRecords, setDbRecords] = useState<any[]>([]);
+  const [dbTotalCount, setDbTotalCount] = useState(0);
+  const [isDbLoading, setIsDbLoading] = useState(false);
+
+  // Fallback API History
+  const { records: apiRecords, totalCount: apiTotalCount, isLoading: apiIsLoading, error: apiError } = useGaoHistory(skip, take);
+
+  useEffect(() => {
+    if (mode === 'real') {
+      const fetchDbHistory = async () => {
+        setIsDbLoading(true);
+        try {
+          const colRef = collection(db, 'tag_history');
+          const countSnap = await getCountFromServer(colRef);
+          setDbTotalCount(countSnap.data().count);
+          
+          // NOTE: True pagination in firestore is cursor based, but for simplicity we fetch limit and do a client slice for now
+          // or we can just fetch a larger chunk. We'll do a simple limited query for demonstration:
+          const q = query(colRef, orderBy('timestamp', 'desc'), limit(take + skip));
+          const snap = await getDocs(q);
+          
+          const fetched = snap.docs.map(doc => {
+            const data = doc.data();
+            return {
+              TagID: data.TagID,
+              FirstName: data.name?.split(' ')[0] || '',
+              LastName: data.name?.split(' ').slice(1).join(' ') || '',
+              LocationName: data.toZone || data.currentZone || 'Unknown',
+              EnterTimeStr: data.timestamp?.toDate().toLocaleString() || new Date().toLocaleString(),
+              LeaveTimeStr: 'ACTIVE',
+              Duration: 0.1, // mock duration for log entry
+              role: data.role
+            };
+          });
+          
+          setDbRecords(fetched.slice(skip, skip + take));
+        } catch (e) {
+          console.error('Failed to fetch DB history', e);
+        } finally {
+          setIsDbLoading(false);
+        }
+      };
+      fetchDbHistory();
+    }
+  }, [mode, skip, take]);
+
+  const records = mode === 'real' ? dbRecords : apiRecords;
+  const totalCount = mode === 'real' ? dbTotalCount : apiTotalCount;
+  const isLoading = mode === 'real' ? isDbLoading : apiIsLoading;
+  const error = mode === 'real' ? null : apiError;
 
   // Generate deterministic mock history based on current people's trail or fallback
   const simulatedHistory = useMemo(() => {
