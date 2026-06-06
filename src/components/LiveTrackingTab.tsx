@@ -3,9 +3,12 @@ import { Person } from '../lib/simulation';
 import LiveFloorMap from './LiveFloorMap';
 import { useGaoRealtime } from '../lib/useGaoApi';
 import { Radio, MapPin, Clock } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 export default function LiveTrackingTab({ people, zones, highlightedPersonId, isLoading: mainIsLoading }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, isLoading?: boolean }) {
   const [selectedPerson, setSelectedPerson] = useState<string | null>(highlightedPersonId || null);
+  const location = useLocation();
+  const focusZone = location.state?.focusZone || null;
   
   // Real-time data from API
   const { tags, error, isLoading: feedIsLoading } = useGaoRealtime(2000);
@@ -28,7 +31,7 @@ export default function LiveTrackingTab({ people, zones, highlightedPersonId, is
                </div>
              </div>
            ) : (
-             <LiveFloorMap people={people} zones={zones} highlightedPersonId={selectedPerson || highlightedPersonId} />
+             <LiveFloorMap people={people} zones={zones} highlightedPersonId={selectedPerson || highlightedPersonId} initialFocusZone={focusZone} />
            )}
         </div>
       </div>

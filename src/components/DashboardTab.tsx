@@ -3,7 +3,9 @@ import { Card } from '@/components/ui/card';
 import { Users, UserCheck, Activity, ShieldAlert, Clock, Bell, Map, LayoutDashboard, Cpu, ShieldCheck, Radio } from 'lucide-react';
 import AIFeed from './AIFeed';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
-import { useMemo, ReactNode } from 'react';
+import { useMemo, ReactNode, useState, useEffect } from 'react';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 const COLORS = ['#007BC4', '#38bdf8', '#10b981', '#f59e0b', '#8b5cf6'];
 
@@ -11,6 +13,54 @@ export default function DashboardTab({ people, alerts, zones, highlightedPersonI
   const movingCount = people.filter(p => p.presenceState === 'MOVING').length;
   const restrictedAlertsCount = alerts.filter(a => a.type === 'security').length;
   const avgDwellInfo = people.length > 0 ? (people.reduce((sum, p) => sum + p.dwellTime, 0) / people.length / 60).toFixed(1) : "0.0";
+
+  const [deviceStats, setDeviceStats] = useState({ online: 0, offline: 0, warning: 0 });
+
+  useEffect(() => {
+    let unsubs: (() => void)[] = [];
+    
+    const countDevices = (deviceList: any[]) => {
+       let on = 0, off = 0, warn = 0;
+       deviceList.forEach(d => {
+          if (d.status === 'online') on++;
+          else if (d.status === 'warning') warn++;
+          else off++;
+       });
+       return { on, off, warn };
+    };
+
+    let stdDevs: any[] = [];
+    let fpDevs: any[] = [];
+    
+    const updateStats = () => {
+       const std = countDevices(stdDevs);
+       const fp = countDevices(fpDevs);
+       setDeviceStats({
+          online: std.on + fp.on || 0,
+          offline: std.off + fp.off || 0,
+          warning: std.warn + fp.warn || 0
+       });
+    };
+
+    unsubs.push(onSnapshot(collection(db, 'devices'), (snapshot) => {
+      stdDevs = [];
+      snapshot.forEach(doc => stdDevs.push(doc.data()));
+      updateStats();
+    }));
+    
+    unsubs.push(onSnapshot(collection(db, 'floorplans'), (snapshot) => {
+      fpDevs = [];
+      snapshot.forEach(doc => {
+         const fp = doc.data();
+         if (fp.devices && Array.isArray(fp.devices)) {
+            fp.devices.forEach((d:any) => fpDevs.push({...d, status: 'online'}));
+         }
+      });
+      updateStats();
+    }));
+
+    return () => unsubs.forEach(fn => fn());
+  }, []);
 
   // Data for charts
   const zoneData = useMemo(() => {
@@ -39,10 +89,10 @@ export default function DashboardTab({ people, alerts, zones, highlightedPersonI
   }, []);
 
   const deviceData = [
-    { name: 'Online', value: 24, color: '#10b981' },
-    { name: 'Offline', value: 5, color: '#f43f5e' },
-    { name: 'Warning', value: 3, color: '#f59e0b' }
-  ];
+    { name: 'Online', value: deviceStats.online || 1, color: '#10b981' },
+    { name: 'Offline', value: deviceStats.offline, color: '#f43f5e' },
+    { name: 'Warning', value: deviceStats.warning, color: '#f59e0b' }
+  ].filter(d => d.value > 0);
 
   if (isLoading) {
     return (

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Radio, Wifi, WifiOff, AlertCircle, RefreshCw, MoreVertical, Plus } from 'lucide-react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { Search, Radio, Wifi, WifiOff, AlertCircle, RefreshCw, MoreVertical, Plus, X, Save, MapPin } from 'lucide-react';
+import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useNavigate } from 'react-router-dom';
 
 interface Device {
   id: string;
@@ -15,33 +16,94 @@ interface Device {
 }
 
 export default function DevicesTab() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [devices, setDevices] = useState<Device[]>([]);
+  
+  const [isAdding, setIsAdding] = useState(false);
+  const [newDevId, setNewDevId] = useState('');
+  const [newDevName, setNewDevName] = useState('');
+  const [newDevLoc, setNewDevLoc] = useState('Entrance');
+  const [newDevType, setNewDevType] = useState('UHF RFID Reader');
+  const [newDevPower, setNewDevPower] = useState('30');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'floorplans'), (snapshot) => {
-      const allDevices: Device[] = [];
+    // Listen to standalone devices collection
+    const unsubDevices = onSnapshot(collection(db, 'devices'), (snapshot) => {
+      const standaloneDevices: Device[] = [];
       snapshot.forEach(doc => {
-        const floorPlan = doc.data();
-        if (floorPlan.devices && Array.isArray(floorPlan.devices)) {
-          floorPlan.devices.forEach((dev: any) => {
-            allDevices.push({
-              id: dev.mac || dev.id,
-              name: dev.name,
-              location: floorPlan.name,
-              type: 'UHF RFID',
-              status: 'online', // Simplified for demo
-              ip: 'DHCP assigned',
-              lastPing: 'Just now',
-              uptime: '2d 4h'
-            });
-          });
-        }
+         standaloneDevices.push({
+            id: doc.id,
+            name: doc.data().name,
+            location: doc.data().location || 'Unknown',
+            type: doc.data().type || 'UHF RFID',
+            status: doc.data().status || 'online',
+            ip: doc.data().ip || 'DHCP assigned',
+            lastPing: 'Just now',
+            uptime: '0d 0h'
+         });
       });
-      setDevices(allDevices);
+      
+      // Also get floorplan devices
+      const unsubFloorplans = onSnapshot(collection(db, 'floorplans'), (fpSnapshot) => {
+         const fpDevices: Device[] = [];
+         fpSnapshot.forEach(doc => {
+            const floorPlan = doc.data();
+            if (floorPlan.devices && Array.isArray(floorPlan.devices)) {
+               floorPlan.devices.forEach((dev: any) => {
+                  fpDevices.push({
+                     id: dev.mac || dev.id,
+                     name: dev.name,
+                     location: floorPlan.name,
+                     type: 'UHF RFID',
+                     status: 'online', 
+                     ip: 'DHCP assigned',
+                     lastPing: 'Just now',
+                     uptime: '2d 4h'
+                  });
+               });
+            }
+         });
+         
+         // Merge and deduplicate by id
+         const combined = [...standaloneDevices, ...fpDevices];
+         const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+         setDevices(unique);
+      });
+      
+      return () => unsubFloorplans();
     });
-    return () => unsub();
+    
+    return () => unsubDevices();
   }, []);
+
+  const handleSaveDevice = async () => {
+    if (!newDevId || !newDevName) return;
+    setIsSaving(true);
+    try {
+       await setDoc(doc(db, 'devices', newDevId), {
+          name: newDevName,
+          location: newDevLoc,
+          type: newDevType,
+          status: 'online',
+          ip: 'Dynamic',
+          powerDb: newDevPower,
+          createdAt: new Date()
+       });
+       setIsAdding(false);
+       setNewDevId('');
+       setNewDevName('');
+       setNewDevLoc('Entrance');
+       setNewDevType('UHF RFID Reader');
+       setNewDevPower('30');
+    } catch(e) {
+       console.error(e);
+       alert("Failed to save device");
+    } finally {
+       setIsSaving(false);
+    }
+  };
 
   const filteredDevices = devices.filter(d => 
     d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -53,7 +115,7 @@ export default function DevicesTab() {
   const offlineCount = devices.filter(d => d.status === 'offline').length;
 
   return (
-    <div className="flex flex-col gap-6 w-full h-full p-6 bg-slate-50">
+    <div className="flex flex-col gap-6 w-full h-full p-6 bg-slate-50 relative">
       <div className="flex justify-between items-center shrink-0">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Device Management</h2>
@@ -70,6 +132,12 @@ export default function DevicesTab() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+          <button 
+            onClick={() => setIsAdding(true)}
+            className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md transition"
+          >
+            <Plus className="w-4 h-4" /> Add Device
+          </button>
         </div>
       </div>
 
@@ -131,7 +199,16 @@ export default function DevicesTab() {
                         </div>
                      </div>
                   </td>
-                  <td className="py-3 px-4 font-medium text-slate-700">{device.location}</td>
+                  <td className="py-3 px-4 text-sm font-medium">
+                     <button 
+                       onClick={() => navigate('/live', { state: { focusZone: device.location } })}
+                       title="View on floor plan"
+                       className="inline-flex flex-col md:flex-row items-start md:items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-[#007BC4]/5 hover:border-[#007BC4]/30 hover:text-[#007BC4] transition text-slate-700 shadow-sm"
+                     >
+                       <MapPin className="w-3.5 h-3.5 shrink-0" />
+                       <span className="truncate max-w-[120px]">{device.location}</span>
+                     </button>
+                  </td>
                   <td className="py-3 px-4 text-sm text-slate-600">{device.type}</td>
                   <td className="py-3 px-4">
                      <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${
@@ -171,6 +248,91 @@ export default function DevicesTab() {
           </table>
         </div>
       </div>
+      
+      {/* Add Device Modal */}
+      {isAdding && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+              <div className="flex justify-between items-center p-5 border-b border-slate-100">
+                 <h3 className="text-lg font-bold text-slate-900">Add New Device</h3>
+                 <button onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-slate-700 transition">
+                    <X className="w-5 h-5" />
+                 </button>
+              </div>
+              <div className="p-5 flex flex-col gap-4">
+                 <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">MAC / Device ID</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. 00:1A:2B:3C:4D:5E"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none font-mono text-sm"
+                      value={newDevId}
+                      onChange={(e) => setNewDevId(e.target.value)}
+                    />
+                 </div>
+                 <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Device Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="Loading Dock Reader"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none text-sm"
+                      value={newDevName}
+                      onChange={(e) => setNewDevName(e.target.value)}
+                    />
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Location Zone</label>
+                        <input 
+                          type="text" 
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none text-sm"
+                          value={newDevLoc}
+                          onChange={(e) => setNewDevLoc(e.target.value)}
+                        />
+                     </div>
+                     <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Device Type</label>
+                        <select 
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none text-sm"
+                          value={newDevType}
+                          onChange={(e) => setNewDevType(e.target.value)}
+                        >
+                           <option value="UHF RFID Reader">UHF RFID Reader</option>
+                           <option value="BLE Beacon">BLE Beacon</option>
+                           <option value="UWB Anchor">UWB Anchor</option>
+                        </select>
+                     </div>
+                 </div>
+                 <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Tx Power (dBm)</label>
+                    <input 
+                      type="number" 
+                      min="10" max="33"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none text-sm"
+                      value={newDevPower}
+                      onChange={(e) => setNewDevPower(e.target.value)}
+                    />
+                 </div>
+              </div>
+              <div className="p-5 bg-slate-50 border-t border-slate-100 justify-end flex gap-3">
+                 <button 
+                   onClick={() => setIsAdding(false)} 
+                   className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-200 transition"
+                 >
+                    Cancel
+                 </button>
+                 <button 
+                   onClick={handleSaveDevice}
+                   disabled={!newDevId || !newDevName || isSaving}
+                   className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-md transition disabled:opacity-50"
+                 >
+                    {isSaving ? <Save className="w-4 h-4 animate-pulse" /> : <Save className="w-4 h-4" />}
+                    Save Device
+                 </button>
+              </div>
+           </div>
+         </div>
+      )}
     </div>
   );
 }

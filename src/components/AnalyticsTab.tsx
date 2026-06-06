@@ -2,7 +2,7 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianG
 import { Person } from '../lib/simulation';
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Network, ActivitySquare, LayoutGrid } from 'lucide-react';
+import { Network, ActivitySquare, LayoutGrid, Download } from 'lucide-react';
 
 const COLORS = ['#6366f1', '#38bdf8', '#10b981', '#f59e0b', '#f43f5e'];
 
@@ -47,9 +47,34 @@ export default function AnalyticsTab({ people, isLoading }: { people: Person[], 
     return base;
   }, [zoneData]);
 
+  const handleDownloadCsv = () => {
+    if (people.length === 0) return;
+    
+    const headers = ['ID', 'Name', 'Role', 'Current Zone', 'State', 'Dwell Time (s)', 'Last Seen'];
+    const rows = people.map(p => [
+      p.id,
+      p.name,
+      p.role,
+      p.currentZone,
+      p.presenceState,
+      p.dwellTime,
+      p.lastSeen.toISOString()
+    ]);
+    
+    const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `facility_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (isLoading) {
     return (
-      <div className="flex flex-col w-full h-full p-6 items-center justify-center bg-slate-50">
+      <div className="flex flex-col w-full h-full p-6 items-center justify-center bg-slate-50 dark:bg-slate-900 transition-colors">
         <div className="flex flex-col items-center gap-4 animate-pulse">
            <div className="w-12 h-12 rounded-full border-4 border-[#007BC4] border-t-transparent animate-spin"></div>
            <div className="text-slate-500 font-medium">Loading analytics history...</div>
@@ -59,58 +84,67 @@ export default function AnalyticsTab({ people, isLoading }: { people: Person[], 
   }
 
   return (
-    <div className="flex flex-col w-full h-full p-6 overflow-auto gap-6 bg-slate-50">
-      <div className="flex flex-col gap-2 shrink-0">
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">Facility Analytics</h2>
-        <p className="text-slate-500 font-medium">High-level insights, movement patterns, and occupancy rates.</p>
+    <div className="flex flex-col w-full h-full p-6 overflow-auto gap-6 bg-slate-50 dark:bg-slate-900 transition-colors">
+      <div className="flex justify-between items-center shrink-0">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Facility Analytics</h2>
+          <p className="text-slate-500 font-medium">High-level insights, movement patterns, and occupancy rates.</p>
+        </div>
+        <button 
+          onClick={handleDownloadCsv}
+          disabled={people.length === 0}
+          className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md transition disabled:opacity-50"
+        >
+          <Download className="w-4 h-4" /> Download CSV
+        </button>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6 shrink-0">
-         <Card className="bg-white border-slate-200 shadow-sm transition hover:shadow-md">
+         <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm transition hover:shadow-md">
            <CardHeader className="pb-2">
-             <CardTitle className="text-sm font-bold text-slate-500 flex items-center justify-between">
+             <CardTitle className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                Total Coverage
                <ActivitySquare className="w-4 h-4 text-[#007BC4]" />
              </CardTitle>
            </CardHeader>
            <CardContent>
-             <div className="text-3xl font-black text-slate-900">100%</div>
+             <div className="text-3xl font-black text-slate-900 dark:text-white">100%</div>
              <p className="text-xs font-semibold text-[#007BC4] mt-1">All 9 active readers online</p>
            </CardContent>
          </Card>
-         <Card className="bg-white border-slate-200 shadow-sm transition hover:shadow-md">
+         <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm transition hover:shadow-md">
            <CardHeader className="pb-2">
-             <CardTitle className="text-sm font-bold text-slate-500 flex items-center justify-between">
+             <CardTitle className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                Peak Occupancy
                <LayoutGrid className="w-4 h-4 text-emerald-500" />
              </CardTitle>
            </CardHeader>
            <CardContent>
-             <div className="text-3xl font-black text-slate-900">45</div>
-             <p className="text-xs font-semibold text-slate-500 mt-1">Recorded at 13:00 today</p>
+             <div className="text-3xl font-black text-slate-900 dark:text-white">45</div>
+             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">Recorded at 13:00 today</p>
            </CardContent>
          </Card>
-         <Card className="bg-white border-slate-200 shadow-sm transition hover:shadow-md">
+         <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm transition hover:shadow-md">
            <CardHeader className="pb-2">
-             <CardTitle className="text-sm font-bold text-slate-500 flex items-center justify-between">
+             <CardTitle className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center justify-between">
                System Latency
                <Network className="w-4 h-4 text-amber-500" />
              </CardTitle>
            </CardHeader>
            <CardContent>
-             <div className="text-3xl font-black text-slate-900">14ms</div>
-             <p className="text-xs font-semibold text-slate-500 mt-1">Real-time WebSocket feed</p>
+             <div className="text-3xl font-black text-slate-900 dark:text-white">14ms</div>
+             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">Real-time WebSocket feed</p>
            </CardContent>
          </Card>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6 flex-1 min-h-[400px]">
         {/* Main trend chart */}
-        <Card className="bg-white border-slate-200 shadow-sm flex flex-col transition hover:shadow-md">
-          <CardHeader>
-            <CardTitle className="text-slate-900">Occupancy Timeline (24hr)</CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 min-h-[300px]">
+        <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm flex flex-col transition hover:shadow-md">
+           <CardHeader>
+             <CardTitle className="text-slate-900 dark:text-white">Occupancy Timeline (24hr)</CardTitle>
+           </CardHeader>
+           <CardContent className="flex-1 min-h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={mockTimelineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
@@ -133,9 +167,9 @@ export default function AnalyticsTab({ people, isLoading }: { people: Person[], 
         </Card>
 
         <div className="flex flex-col gap-6">
-          <Card className="bg-white border-slate-200 shadow-sm flex-1 flex flex-col transition hover:shadow-md">
+          <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm flex-1 flex flex-col transition hover:shadow-md">
             <CardHeader>
-              <CardTitle className="text-slate-900">Personnel Roles</CardTitle>
+              <CardTitle className="text-slate-900 dark:text-white">Personnel Roles</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 min-h-[150px]">
                <ResponsiveContainer width="100%" height="100%">
@@ -162,7 +196,7 @@ export default function AnalyticsTab({ people, isLoading }: { people: Person[], 
                </ResponsiveContainer>
                <div className="flex justify-center gap-4 mt-4">
                  {roleData.map((entry, index) => (
-                    <div key={entry.name} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <div key={entry.name} className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
                       {entry.name}
                     </div>
@@ -171,9 +205,9 @@ export default function AnalyticsTab({ people, isLoading }: { people: Person[], 
             </CardContent>
           </Card>
 
-          <Card className="bg-white border-slate-200 shadow-sm flex-1 flex flex-col transition hover:shadow-md">
+          <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm flex-1 flex flex-col transition hover:shadow-md">
             <CardHeader>
-              <CardTitle className="text-slate-900">Zone Distribution</CardTitle>
+              <CardTitle className="text-slate-900 dark:text-white">Zone Distribution</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 min-h-[150px]">
                <ResponsiveContainer width="100%" height="100%">

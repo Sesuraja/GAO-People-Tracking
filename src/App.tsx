@@ -73,15 +73,15 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     : [];
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors">
       {/* Sidebar */}
-      <aside className="w-56 bg-white border-r border-slate-200 flex flex-col py-6 shrink-0 z-10 transition-all duration-300 shadow-sm">
+      <aside className="w-56 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col py-6 shrink-0 z-10 transition-all duration-300 shadow-sm">
         {/* LOGO */}
         <div className="px-6 mb-8 flex flex-col">
           <div className="flex items-center gap-2">
             <h1 className="text-4xl font-extrabold tracking-tight text-[#007BC4] leading-none">GAO</h1>
           </div>
-          <span className="text-[10px] tracking-widest text-slate-500 font-semibold mt-1">People Tracking</span>
+          <span className="text-[10px] tracking-widest text-slate-500 dark:text-slate-400 font-semibold mt-1">People Tracking</span>
         </div>
 
         {/* Global Search */}
@@ -91,7 +91,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
               <input 
                 type="text" 
                 placeholder="Search personnel..." 
-                className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 rounded-lg pl-9 pr-3 py-2 outline-none focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 rounded-lg pl-9 pr-3 py-2 outline-none focus:border-[#007BC4] dark:focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition"
                 value={searchQuery}
                 onChange={e => {
                    setSearchQuery(e.target.value);
@@ -101,7 +101,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
            </div>
            {searchQuery && (
              <div className="relative z-50">
-               <div className="absolute top-1 left-0 w-full flex flex-col gap-1 max-h-48 overflow-y-auto bg-white border border-slate-200 shadow-xl rounded-lg p-1">
+               <div className="absolute top-1 left-0 w-full flex flex-col gap-1 max-h-48 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-lg p-1">
                  {filteredPeople.map(p => (
                     <button 
                       key={p.id}
@@ -110,14 +110,14 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                           navigate('/');
                           setSearchQuery('');
                       }}
-                      className={`text-left text-xs p-2 rounded flex justify-between items-center ${highlightedPersonId === p.id ? 'bg-[#007BC4] text-white' : 'text-slate-700 hover:bg-slate-50 hover:text-[#007BC4]'}`}
+                      className={`text-left text-xs p-2 rounded flex justify-between items-center ${highlightedPersonId === p.id ? 'bg-[#007BC4] text-white' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-[#007BC4] dark:hover:text-[#007BC4]'}`}
                     >
                       <span className="truncate mr-2 font-medium">{p.name}</span>
                       <span className="opacity-60 text-[9px] uppercase tracking-wider">{p.currentZone}</span>
                     </button>
                  ))}
                  {filteredPeople.length === 0 && (
-                    <div className="text-xs text-slate-500 p-2 text-center">No results found.</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 p-2 text-center">No results found.</div>
                  )}
                </div>
              </div>
@@ -140,24 +140,24 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
         <div className="mt-auto px-4 pt-4 shrink-0 flex items-center justify-between gap-2">
            <div 
              onClick={() => setIsProfileModalOpen(true)}
-             className="bg-slate-50 p-3 flex-1 rounded-xl flex items-center justify-between cursor-pointer border border-slate-200 hover:bg-slate-100 transition shadow-sm"
+             className="bg-slate-50 dark:bg-slate-800 p-3 flex-1 rounded-xl flex items-center justify-between cursor-pointer border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition shadow-sm"
            >
              <div className="flex items-center gap-3">
                <div className="w-8 h-8 rounded-full bg-[#007BC4] flex items-center justify-center text-xs font-bold text-white shrink-0 uppercase">
                 {auth.currentUser?.email ? auth.currentUser.email.charAt(0) : 'AD'}
                </div>
                <div className="flex flex-col min-w-0 pr-2">
-                 <span className="text-sm font-semibold text-slate-900 truncate">
+                 <span className="text-sm font-semibold text-slate-900 dark:text-white truncate">
                   {auth.currentUser?.email ? auth.currentUser.email.split('@')[0] : 'Admin User'}
                  </span>
-                 <span className="text-[10px] text-slate-500">System Operator</span>
+                 <span className="text-[10px] text-slate-500 dark:text-slate-400">System Operator</span>
                </div>
              </div>
            </div>
            
            <button 
              onClick={onLogout}
-             className="p-3 text-slate-500 hover:bg-red-50 hover:text-red-500 rounded-xl border border-transparent hover:border-red-100 transition shadow-sm bg-slate-50 shrink-0" 
+             className="p-3 text-slate-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 rounded-xl border border-transparent hover:border-red-100 dark:hover:border-red-500/20 transition shadow-sm bg-slate-50 dark:bg-slate-800 shrink-0" 
              title="Logout"
            >
               <LogOut size={16} />
@@ -166,7 +166,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 bg-slate-50">
+      <main className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900 transition-colors">
         <TopBar />
         
         <div className="flex-1 overflow-hidden relative">
@@ -199,7 +199,7 @@ function NavItem({ to, icon, label, hasNotification = false }: { to: string, ico
       className={({ isActive }) => `relative flex items-center gap-3 w-full px-4 py-3 rounded-lg transition-all duration-200 shrink-0 ${
         isActive 
           ? 'bg-[#007BC4] text-white shadow-md font-medium' 
-          : 'text-slate-600 hover:bg-slate-50 hover:text-[#007BC4]'
+          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-[#007BC4] dark:hover:text-[#007BC4]'
       }`}
     >
       {icon}

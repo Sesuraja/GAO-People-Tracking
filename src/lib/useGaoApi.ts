@@ -11,29 +11,31 @@ export function useGaoRealtime(pollingIntervalMs = 2000) {
   useEffect(() => {
     let isMounted = true;
     
-    // Listen to live_tags from Firestore
-    const q = query(collection(db, 'live_tags'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!isMounted) return;
-      const data: RealtimeTag[] = [];
-      snapshot.forEach((doc) => {
-        data.push(doc.data() as RealtimeTag);
-      });
-      setTags(data);
-      setIsLoading(false);
-      setError(null);
-    }, (err) => {
-      if (!isMounted) return;
-      console.error(err);
-      setError(new Error(err.message));
-      setIsLoading(false);
-    });
+    const fetchRealtime = async () => {
+       try {
+          const data = await gaoApi.getTagsInRealtime();
+          if (isMounted) {
+             setTags(data);
+             setIsLoading(false);
+             setError(null);
+          }
+       } catch (err: any) {
+          if (isMounted) {
+             console.error(err);
+             setError(err);
+             setIsLoading(false);
+          }
+       }
+    };
+    
+    fetchRealtime();
+    const interval = setInterval(fetchRealtime, pollingIntervalMs);
 
     return () => {
       isMounted = false;
-      unsubscribe();
+      clearInterval(interval);
     };
-  }, []);
+  }, [pollingIntervalMs]);
 
   return { tags, error, isLoading };
 }

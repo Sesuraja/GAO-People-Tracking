@@ -1,11 +1,17 @@
 import { motion } from 'motion/react';
 import { Person, Zone } from '../lib/simulation';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Layers } from 'lucide-react';
 
-export default function LiveFloorMap({ people, zones, highlightedPersonId }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null }) {
+export default function LiveFloorMap({ people, zones, highlightedPersonId, initialFocusZone }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, initialFocusZone?: string | null }) {
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [selectedZone, setSelectedZone] = useState<string | null>(null);
+  const [selectedZone, setSelectedZone] = useState<string | null>(initialFocusZone || null);
+
+  useEffect(() => {
+    if (initialFocusZone) {
+      setSelectedZone(initialFocusZone);
+    }
+  }, [initialFocusZone]);
 
   // Simple bounding boxes for drawing
   const zoneEntries = Object.entries(zones);
