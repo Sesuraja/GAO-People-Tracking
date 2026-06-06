@@ -4,10 +4,10 @@
  */
 
 import { motion } from 'motion/react';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useSimulation } from './lib/simulation';
-import { Activity, Bell, Map, Users, BarChart3, Settings, ShieldAlert, Cpu, LayoutDashboard, Radio, PlayCircle, Search } from 'lucide-react';
+import { Activity, Bell, Map, Map as MapIcon, Users, BarChart3, Settings, ShieldAlert, Cpu, LayoutDashboard, Radio, PlayCircle, Search, LogOut } from 'lucide-react';
 import TopBar from './components/TopBar';
 import PeopleTab from './components/PeopleTab';
 import AlertsTab from './components/AlertsTab';
@@ -19,17 +19,49 @@ import DevicesTab from './components/DevicesTab';
 import SettingsTab from './components/SettingsTab';
 import ProfileModal from './components/ProfileModal';
 import ChatBot from './components/ChatBot';
+import Login from './components/Login';
+import { startGaoSync, stopGaoSync } from './lib/gaoSyncService';
+import { auth } from './lib/firebase';
+import { signOut } from 'firebase/auth';
+
+import LocationsTab from './components/LocationsTab';
+
+export type AppMode = 'real' | 'demo' | null;
+
+export const AppModeContext = React.createContext<{ mode: AppMode }>({ mode: null });
 
 export default function App() {
+  const [mode, setMode] = useState<AppMode>(null);
+
+  useEffect(() => {
+    if (mode === 'real') {
+      startGaoSync();
+    } else {
+      stopGaoSync();
+    }
+  }, [mode]);
+
+  if (!mode) {
+    return <Login onLoginSuccess={setMode} />;
+  }
+
   return (
-    <BrowserRouter>
-      <AppContent />
-    </BrowserRouter>
+    <AppModeContext.Provider value={{ mode }}>
+      <BrowserRouter>
+        <AppContent onLogout={() => {
+            if (mode === 'real') {
+                signOut(auth).catch(console.error);
+            }
+            setMode(null);
+        }} />
+      </BrowserRouter>
+    </AppModeContext.Provider>
   );
 }
 
-function AppContent() {
-  const { people, alerts, ZONES, isLoading } = useSimulation();
+function AppContent({ onLogout }: { onLogout: () => void }) {
+  const { mode } = React.useContext(AppModeContext);
+  const { people, alerts, ZONES, isLoading } = useSimulation(mode);
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedPersonId, setHighlightedPersonId] = useState<string | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -98,16 +130,17 @@ function AppContent() {
           <NavItem to="/playback" icon={<PlayCircle size={20}/>} label="Playback History" />
           <NavItem to="/people" icon={<Users size={20}/>} label="People" />
           <NavItem to="/alerts" icon={<Bell size={20}/>} label="Alerts" hasNotification={alerts.some(a => a.type === 'security')} />
+          <NavItem to="/locations" icon={<MapIcon size={20}/>} label="Locations" />
           <NavItem to="/analytics" icon={<BarChart3 size={20}/>} label="Analytics" />
           <NavItem to="/devices" icon={<Radio size={20}/>} label="Devices" />
           <NavItem to="/settings" icon={<Settings size={20}/>} label="Settings" />
         </nav>
         
         {/* User Profile */}
-        <div className="mt-auto px-4 pt-4 shrink-0">
+        <div className="mt-auto px-4 pt-4 shrink-0 flex items-center justify-between gap-2">
            <div 
              onClick={() => setIsProfileModalOpen(true)}
-             className="bg-slate-50 p-3 rounded-xl flex items-center justify-between cursor-pointer border border-slate-200 hover:bg-slate-100 transition shadow-sm"
+             className="bg-slate-50 p-3 flex-1 rounded-xl flex items-center justify-between cursor-pointer border border-slate-200 hover:bg-slate-100 transition shadow-sm"
            >
              <div className="flex items-center gap-3">
                <div className="w-8 h-8 rounded-full bg-[#007BC4] flex items-center justify-center text-xs font-bold text-white shrink-0">AD</div>
@@ -116,8 +149,15 @@ function AppContent() {
                  <span className="text-[10px] text-slate-500">GAO Admin</span>
                </div>
              </div>
-             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="m6 9 6 6 6-6"/></svg>
            </div>
+           
+           <button 
+             onClick={onLogout}
+             className="p-3 text-slate-500 hover:bg-red-50 hover:text-red-500 rounded-xl border border-transparent hover:border-red-100 transition shadow-sm bg-slate-50 shrink-0" 
+             title="Logout"
+           >
+              <LogOut size={16} />
+           </button>
         </div>
       </aside>
 
@@ -133,6 +173,7 @@ function AppContent() {
               <Route path="/playback" element={<PlaybackTab people={people} zones={ZONES} />} />
               <Route path="/people" element={<PeopleTab people={people} />} />
               <Route path="/alerts" element={<AlertsTab alerts={alerts} />} />
+              <Route path="/locations" element={<LocationsTab />} />
               <Route path="/analytics" element={<AnalyticsTab people={people} isLoading={isLoading} />} />
               <Route path="/devices" element={<DevicesTab />} />
               <Route path="/settings" element={<SettingsTab />} />

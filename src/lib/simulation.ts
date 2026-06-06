@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { gaoApi, RealtimeTag } from './gaoApi';
 import { db, auth } from './firebase';
-import { collection, addDoc, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, limit, onSnapshot, doc } from 'firebase/firestore';
 
 enum OperationType {
   CREATE = 'create',
@@ -85,149 +85,301 @@ const ZONES: Record<string, { x: number; y: number; width: number; height: numbe
   'd8': { x: 10, y: 10, width: 20, height: 40 }
 };
 
-export function useSimulation() {
+export function useSimulation(mode: 'real' | 'demo' | null) {
   const [people, setPeople] = useState<Person[]>([]);
   const [alerts, setAlerts] = useState<AIAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Dynamic thresholds
+  const loiteringThresholdRef = useRef(300);
+  const idleAlertThresholdRef = useRef(3600);
+  const occupancyLimitsRef = useRef<Record<string, number>>({});
+  const alertedZonesRef = useRef<Record<string, number>>({});
+
+  // Helper to add fake alerts in demo mode
+  const addDemoAlert = (type: 'security' | 'warning' | 'info', message: string) => {
+     setAlerts(prev => [{ id: Math.random().toString(), type, message, timestamp: new Date() }, ...prev].slice(0, 15));
+  };
 
   useEffect(() => {
-    // Listen to Firebase alerts
-    const alertsQuery = query(collection(db, 'alerts'), orderBy('timestamp', 'desc'), limit(15));
-    const unsubscribe = onSnapshot(alertsQuery, (snapshot) => {
-      const dbAlerts = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate() || new Date()
-      })) as AIAlert[];
-      setAlerts(dbAlerts);
-    }, (error) => {
-       handleFirestoreError(error, OperationType.GET, 'alerts');
+    // Listen to settings changes globally
+    const settingsRef = doc(db, 'settings', 'global');
+    const unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.loiteringThreshold !== undefined) loiteringThresholdRef.current = data.loiteringThreshold;
+        if (data.idleAlertThreshold !== undefined) idleAlertThresholdRef.current = data.idleAlertThreshold;
+        if (data.occupancyThresholds) occupancyLimitsRef.current = data.occupancyThresholds;
+      }
     });
-    return () => unsubscribe();
+    return () => unsubscribeSettings();
   }, []);
 
   useEffect(() => {
+    if (!mode) return;
+    
     let isMounted = true;
+    let unsubscribeAlerts = () => {};
+    let unsubscribeTags = () => {};
+    let interval: NodeJS.Timeout;
 
-    // Listen to live_tags from Firestore instead of direct API polling!
-    const tagsQuery = query(collection(db, 'live_tags'));
-    const unsubscribeTags = onSnapshot(tagsQuery, (snapshot) => {
-      if (!isMounted) return;
-      setIsLoading(false);
+    if (mode === 'real') {
+       // Listen to Firebase alerts
+       const alertsQuery = query(collection(db, 'alerts'), orderBy('timestamp', 'desc'), limit(15));
+       unsubscribeAlerts = onSnapshot(alertsQuery, (snapshot) => {
+         const dbAlerts = snapshot.docs.map(doc => ({
+           id: doc.id,
+           ...doc.data(),
+           timestamp: doc.data().timestamp?.toDate() || new Date()
+         })) as AIAlert[];
+         setAlerts(dbAlerts);
+       }, (error) => {
+          handleFirestoreError(error, OperationType.GET, 'alerts');
+       });
 
-      const latestTagInfo: Record<string, any> = {};
-      snapshot.forEach(doc => {
-         const data = doc.data();
-         if (data.TagID) {
-           latestTagInfo[data.TagID] = data;
-         }
-      });
+       // Listen to Firebase live_tags from the real API
+       const tagsQuery = query(collection(db, 'live_tags'));
+       unsubscribeTags = onSnapshot(tagsQuery, (snapshot) => {
+         if (!isMounted) return;
+         setIsLoading(false);
 
-      setPeople((prev) => {
-        const nextPeople = [...prev];
+         const latestTagInfo: Record<string, any> = {};
+         snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.TagID) {
+              latestTagInfo[data.TagID] = data;
+            }
+         });
 
-        if (Object.keys(latestTagInfo).length === 0) return nextPeople;
+         setPeople((prev) => {
+           const nextPeople = [...prev];
 
-        Object.values(latestTagInfo).forEach(tag => {
-           let p = nextPeople.find(x => x.id === tag.TagID);
-           let targetZone = tag.Location;
+           if (Object.keys(latestTagInfo).length === 0) return nextPeople;
+
+           Object.values(latestTagInfo).forEach(tag => {
+              let p = nextPeople.find(x => x.id === tag.TagID);
+              let targetZone = tag.Location;
+              
+              if (!ZONES[targetZone]) targetZone = 'Entrance'; 
+
+              if (!p) {
+                  p = {
+                    id: tag.TagID,
+                    name: `Tag ${tag.TagID.substring(0, 6).toUpperCase()}`,
+                    role: 'Visitor',
+                    currentZone: targetZone,
+                    presenceState: 'IDLE',
+                    dwellTime: 0,
+                    x: ZONES[targetZone].x + ZONES[targetZone].width / 2,
+                    y: ZONES[targetZone].y + ZONES[targetZone].height / 2,
+                    lastSeen: new Date(tag.Timestamp + "Z"),
+                    trail: []
+                  };
+                  nextPeople.push(p);
+
+                  addDoc(collection(db, 'alerts'), {
+                      type: 'info',
+                      message: `System tracked new tag: ${tag.TagID.substring(0, 8)} at ${tag.Location}`,
+                      timestamp: new Date()
+                  }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
+
+              } else {
+                  p.lastSeen = new Date(tag.Timestamp + "Z");
+                  if (p.currentZone !== targetZone) {
+                      p.currentZone = targetZone;
+                      p.dwellTime = 0;
+                      p.presenceState = 'MOVING';
+                      
+                      // Move avatar to center of new zone
+                      p.x = ZONES[targetZone].x + ZONES[targetZone].width / 2;
+                      p.y = ZONES[targetZone].y + ZONES[targetZone].height / 2;
+                      
+                      if (p.role === 'Visitor' && targetZone === 'Server Room') {
+                         addDoc(collection(db, 'alerts'), {
+                           type: 'security',
+                           message: `UNAUTHORIZED ACCESS: ${p.name} entered Server Room`,
+                           timestamp: new Date()
+                         }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
+                      }
+                  }
+              }
+           });
+
+           return nextPeople;
+         });
+       }, (error) => {
+          handleFirestoreError(error, OperationType.GET, 'live_tags');
+       });
+
+       const tick = () => {
+         if (!isMounted) return;
+         setPeople((prev) => {
+           const nextPeople = [...prev];
+           // Calculate occupancy bounds 
+           const currentOccupancy: Record<string, number> = {};
+           nextPeople.forEach(p => {
+              currentOccupancy[p.currentZone] = (currentOccupancy[p.currentZone] || 0) + 1;
+           });
+
+           Object.entries(currentOccupancy).forEach(([zone, count]) => {
+              const limit = occupancyLimitsRef.current[zone];
+              if (limit && count > limit) {
+                 const now = Date.now();
+                 const lastAlerted = alertedZonesRef.current[zone] || 0;
+                 if (now - lastAlerted > 60000) { // Alert max once per minute
+                    alertedZonesRef.current[zone] = now;
+                    addDoc(collection(db, 'alerts'), {
+                      type: 'warning',
+                      message: `OVERCAPACITY: ${zone} exceeded max occupancy of ${limit}. Currently ${count}.`,
+                      timestamp: new Date()
+                    }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
+                 }
+              }
+           });
+
+           // Add dwell time logic and minor visual wander so they don't overlap completely
+           nextPeople.forEach(p => {
+             p.dwellTime += 2; 
+
+             p.trail = p.trail || [];
+             p.trail.push({ x: p.x, y: p.y });
+             if (p.trail.length > 15) p.trail.shift();
+
+             const zoneRect = ZONES[p.currentZone] || ZONES['Entrance'];
+             const targetX = zoneRect.x + Math.random() * zoneRect.width;
+             const targetY = zoneRect.y + Math.random() * zoneRect.height;
+             
+             p.x += (targetX - p.x) * 0.1;
+             p.y += (targetY - p.y) * 0.1;
+
+             if (Math.abs(targetX - p.x) < 2 && Math.abs(targetY - p.y) < 2) {
+                p.presenceState = 'IDLE';
+             } else {
+                p.presenceState = 'MOVING';
+             }
+
+             const loiterLimit = loiteringThresholdRef.current;
+             const idleLimit = idleAlertThresholdRef.current;
+             
+             if (p.currentZone === 'Server Room' && p.dwellTime > loiterLimit && p.dwellTime < loiterLimit + 5) {
+                addDoc(collection(db, 'alerts'), {
+                  type: 'warning',
+                  message: `LOITERING DETECTED: ${p.name} in Server Room for over ${Math.floor(loiterLimit / 60)} minutes`,
+                  timestamp: new Date()
+                }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
+             }
+
+             if (p.presenceState === 'IDLE' && p.dwellTime > idleLimit && p.dwellTime < idleLimit + 5) {
+                addDoc(collection(db, 'alerts'), {
+                  type: 'info',
+                  message: `IDLE TAG: ${p.name} has been stationary for over ${Math.floor(idleLimit / 60)} minutes in ${p.currentZone}`,
+                  timestamp: new Date()
+                }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
+             }
+           });
+
+           return nextPeople;
+         });
+       };
+
+       interval = setInterval(tick, 2000);
+    } else if (mode === 'demo') {
+       setIsLoading(false);
+       
+       // Populate initial fake people map
+       const initialPeople: Person[] = [
+          { id: '1', name: 'Alice Smith', role: 'Employee', currentZone: 'Office', presenceState: 'IDLE', dwellTime: 0, x: 45, y: 50, lastSeen: new Date(), trail: [] },
+          { id: '2', name: 'Bob Johnson', role: 'Visitor', currentZone: 'Entrance', presenceState: 'MOVING', dwellTime: 0, x: 15, y: 85, lastSeen: new Date(), trail: [] },
+          { id: '3', name: 'Charlie Davis', role: 'Security', currentZone: 'Meeting Room', presenceState: 'IDLE', dwellTime: 0, x: 50, y: 15, lastSeen: new Date(), trail: [] },
+          { id: '4', name: 'Diana Prince', role: 'Employee', currentZone: 'Cafeteria', presenceState: 'MOVING', dwellTime: 0, x: 15, y: 30, lastSeen: new Date(), trail: [] },
+       ];
+       setPeople(initialPeople);
+
+       // Demo tick running local simulation logic without firebase
+       const demoTick = () => {
+         if (!isMounted) return;
+         setPeople((prev) => {
+           const nextPeople = [...prev];
+           const zoneKeys = Object.keys(ZONES);
            
-           if (!ZONES[targetZone]) targetZone = 'Entrance'; 
+           // Calculate occupancy bounds 
+           const currentOccupancy: Record<string, number> = {};
+           nextPeople.forEach(p => {
+              currentOccupancy[p.currentZone] = (currentOccupancy[p.currentZone] || 0) + 1;
+           });
 
-           if (!p) {
-               p = {
-                 id: tag.TagID,
-                 name: `Tag ${tag.TagID.substring(0, 6).toUpperCase()}`,
-                 role: 'Visitor',
-                 currentZone: targetZone,
-                 presenceState: 'IDLE',
-                 dwellTime: 0,
-                 x: ZONES[targetZone].x + ZONES[targetZone].width / 2,
-                 y: ZONES[targetZone].y + ZONES[targetZone].height / 2,
-                 lastSeen: new Date(tag.Timestamp + "Z"),
-                 trail: []
-               };
-               nextPeople.push(p);
+           Object.entries(currentOccupancy).forEach(([zone, count]) => {
+              const limit = occupancyLimitsRef.current[zone];
+              if (limit && count > limit) {
+                 const now = Date.now();
+                 const lastAlerted = alertedZonesRef.current[zone] || 0;
+                 if (now - lastAlerted > 60000) { // Alert max once per minute
+                    alertedZonesRef.current[zone] = now;
+                    addDemoAlert('warning', `OVERCAPACITY: ${zone} exceeded max occupancy of ${limit}. Currently ${count}.`);
+                 }
+              }
+           });
 
-               addDoc(collection(db, 'alerts'), {
-                   type: 'info',
-                   message: `System tracked new tag: ${tag.TagID.substring(0, 8)} at ${tag.Location}`,
-                   timestamp: new Date()
-               }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
+           nextPeople.forEach(p => {
+             p.dwellTime += 2; 
 
-           } else {
-               p.lastSeen = new Date(tag.Timestamp + "Z");
-               if (p.currentZone !== targetZone) {
-                   p.currentZone = targetZone;
+             p.trail = p.trail || [];
+             p.trail.push({ x: p.x, y: p.y });
+             if (p.trail.length > 25) p.trail.shift();
+
+             // Random zone hopping simulation
+             if (Math.random() < 0.05) {
+                const oldZone = p.currentZone;
+                const newZone = zoneKeys[Math.floor(Math.random() * zoneKeys.length)] || 'Entrance';
+                if (oldZone !== newZone) {
+                   p.currentZone = newZone;
                    p.dwellTime = 0;
-                   p.presenceState = 'MOVING';
-                   
-                   // Move avatar to center of new zone
-                   p.x = ZONES[targetZone].x + ZONES[targetZone].width / 2;
-                   p.y = ZONES[targetZone].y + ZONES[targetZone].height / 2;
-                   
-                   if (p.role === 'Visitor' && targetZone === 'Server Room') {
-                      addDoc(collection(db, 'alerts'), {
-                        type: 'security',
-                        message: `UNAUTHORIZED ACCESS: ${p.name} entered Server Room`,
-                        timestamp: new Date()
-                      }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
+                   if (p.role === 'Visitor' && newZone === 'Server Room') {
+                      addDemoAlert('security', `UNAUTHORIZED ACCESS: ${p.name} entered Server Room`);
+                   } else if (Math.random() < 0.2) {
+                      addDemoAlert('info', `${p.name} moved from ${oldZone} to ${newZone}`);
                    }
-               }
-           }
-        });
+                }
+             }
 
-        return nextPeople;
-      });
-    }, (error) => {
-       handleFirestoreError(error, OperationType.GET, 'live_tags');
-    });
+             const zoneRect = ZONES[p.currentZone] || ZONES['Entrance'];
+             const targetX = zoneRect.x + 2 + Math.random() * (zoneRect.width - 4);
+             const targetY = zoneRect.y + 2 + Math.random() * (zoneRect.height - 4);
+             
+             p.x += (targetX - p.x) * 0.1;
+             p.y += (targetY - p.y) * 0.1;
 
-    const tick = () => {
-      if (!isMounted) return;
-      setPeople((prev) => {
-        const nextPeople = [...prev];
-        // Add dwell time logic and minor visual wander so they don't overlap completely
-        nextPeople.forEach(p => {
-          p.dwellTime += 2; 
+             if (Math.abs(targetX - p.x) < 2 && Math.abs(targetY - p.y) < 2) {
+                p.presenceState = 'IDLE';
+             } else {
+                p.presenceState = 'MOVING';
+             }
 
-          p.trail = p.trail || [];
-          p.trail.push({ x: p.x, y: p.y });
-          if (p.trail.length > 15) p.trail.shift();
+             const loiterLimit = loiteringThresholdRef.current;
+             const idleLimit = idleAlertThresholdRef.current;
+             
+             if (p.currentZone === 'Server Room' && p.dwellTime > loiterLimit && p.dwellTime < loiterLimit + 5) {
+                addDemoAlert('warning', `LOITERING DETECTED: ${p.name} in Server Room for over ${Math.floor(loiterLimit / 60)} minutes`);
+             }
+             
+             if (p.presenceState === 'IDLE' && p.dwellTime > idleLimit && p.dwellTime < idleLimit + 5) {
+                addDemoAlert('info', `IDLE TAG: ${p.name} has been stationary for over ${Math.floor(idleLimit / 60)} minutes in ${p.currentZone}`);
+             }
+           });
 
-          const zoneRect = ZONES[p.currentZone] || ZONES['Entrance'];
-          const targetX = zoneRect.x + Math.random() * zoneRect.width;
-          const targetY = zoneRect.y + Math.random() * zoneRect.height;
-          
-          p.x += (targetX - p.x) * 0.1;
-          p.y += (targetY - p.y) * 0.1;
+           return nextPeople;
+         });
+       };
+       interval = setInterval(demoTick, 2000);
+    }
 
-          if (Math.abs(targetX - p.x) < 2 && Math.abs(targetY - p.y) < 2) {
-             p.presenceState = 'IDLE';
-          } else {
-             p.presenceState = 'MOVING';
-          }
-
-          if (p.currentZone === 'Server Room' && p.dwellTime > 1205 && p.dwellTime < 1210) {
-             addDoc(collection(db, 'alerts'), {
-               type: 'warning',
-               message: `LOITERING DETECTED: ${p.name} in Server Room for over 20 minutes`,
-               timestamp: new Date()
-             }).catch(error => handleFirestoreError(error, OperationType.WRITE, 'alerts'));
-          }
-        });
-
-        return nextPeople;
-      });
-    };
-
-    const interval = setInterval(tick, 2000);
     return () => {
       isMounted = false;
+      unsubscribeAlerts();
       unsubscribeTags();
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     };
-  }, []);
+  }, [mode]);
 
   return { people, alerts, ZONES, isLoading };
 }

@@ -9,8 +9,19 @@ export default function SettingsTab() {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [apiUrl, setApiUrl] = useState(DEFAULT_HOST);
-  const [demoMode, setDemoMode] = useState(false);
+  const [apiDemoMode, setApiDemoMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Custom thresholds state
+  const [loiteringThreshold, setLoiteringThreshold] = useState(300);
+  const [idleAlertThreshold, setIdleAlertThreshold] = useState(3600);
+  const [occupancyThresholds, setOccupancyThresholds] = useState<Record<string, number>>({
+    'Entrance': 20,
+    'Office': 50,
+    'Meeting Room': 15,
+    'Server Room': 2,
+    'Cafeteria': 30
+  });
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -24,10 +35,12 @@ export default function SettingsTab() {
             gaoApi.setHost(data.apiUrl);
           }
           if (data.demoMode !== undefined) {
-             setDemoMode(data.demoMode);
+             setApiDemoMode(data.demoMode);
           }
+          if (data.loiteringThreshold !== undefined) setLoiteringThreshold(data.loiteringThreshold);
+          if (data.idleAlertThreshold !== undefined) setIdleAlertThreshold(data.idleAlertThreshold);
+          if (data.occupancyThresholds !== undefined) setOccupancyThresholds(data.occupancyThresholds);
         } else {
-          // Check local storage as a fallback initially if settings doesn't exist
           const savedUrl = localStorage.getItem('gao_api_url');
           if (savedUrl) {
             setApiUrl(savedUrl);
@@ -41,11 +54,17 @@ export default function SettingsTab() {
     fetchSettings();
   }, []);
 
-  const handleSaveApiUrl = async () => {
+  const handleSaveSettings = async () => {
     setIsSaving(true);
     try {
-      await setDoc(doc(db, 'settings', 'global'), { apiUrl, demoMode }, { merge: true });
-      localStorage.setItem('gao_api_url', apiUrl); // Backup to raw storage
+      await setDoc(doc(db, 'settings', 'global'), { 
+        apiUrl, 
+        demoMode: apiDemoMode,
+        loiteringThreshold,
+        idleAlertThreshold,
+        occupancyThresholds
+      }, { merge: true });
+      localStorage.setItem('gao_api_url', apiUrl);
       gaoApi.setHost(apiUrl);
       setTestResult(null);
     } catch (e) {
@@ -141,8 +160,13 @@ export default function SettingsTab() {
                   </div>
 
                   <div className="flex justify-end pt-4">
-                     <button className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md transition">
-                        <Save className="w-4 h-4" /> Save Changes
+                     <button 
+                        onClick={handleSaveSettings} 
+                        disabled={isSaving}
+                        className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md transition disabled:opacity-50"
+                     >
+                        {isSaving ? <Save className="w-4 h-4 animate-pulse" /> : <Save className="w-4 h-4" />}
+                        {isSaving ? 'Saving...' : 'Save Changes'}
                      </button>
                   </div>
                </div>
@@ -155,32 +179,61 @@ export default function SettingsTab() {
                      <p className="text-slate-500 font-medium mt-1">Configure physical access policies and AI tracking sensitivity.</p>
                   </div>
 
-                  <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100">
-                     <div className="p-6 flex items-center justify-between">
-                        <div>
-                           <div className="font-bold text-slate-900">Enable AI Anomalous Tracking</div>
-                           <div className="text-sm font-medium text-slate-500 mt-1">Automatically flag unusual movement patterns (e.g. loitering).</div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                           <input type="checkbox" defaultChecked className="sr-only peer" />
-                           <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#007BC4]/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007BC4]"></div>
-                        </label>
-                     </div>
-                     <div className="p-6 flex items-center justify-between">
-                        <div>
-                           <div className="font-bold text-slate-900">Strict Tailgating Detection</div>
-                           <div className="text-sm font-medium text-slate-500 mt-1">Require 1:1 tag read ratio per motion event at entry points.</div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                           <input type="checkbox" defaultChecked className="sr-only peer" />
-                           <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#007BC4]/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#007BC4]"></div>
-                        </label>
-                     </div>
+                  <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100 mb-6">
                      <div className="p-6">
                         <label className="block text-sm font-bold text-slate-700 mb-2">Loitering Threshold (Seconds)</label>
-                        <input type="number" defaultValue="300" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] outline-none transition" />
+                        <input 
+                          type="number" 
+                          value={loiteringThreshold} 
+                          onChange={(e) => setLoiteringThreshold(parseInt(e.target.value) || 300)} 
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] outline-none transition" 
+                        />
                         <p className="text-xs text-slate-500 mt-2 font-medium">Time before an alert is triggered in restricted zones.</p>
                      </div>
+                     <div className="p-6">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Idle Alert Threshold (Seconds)</label>
+                        <input 
+                          type="number" 
+                          value={idleAlertThreshold} 
+                          onChange={(e) => setIdleAlertThreshold(parseInt(e.target.value) || 3600)} 
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] outline-none transition" 
+                        />
+                        <p className="text-xs text-slate-500 mt-2 font-medium">Time identifying an inactive tag or prolonged idle period.</p>
+                     </div>
+                  </div>
+                  
+                  <div className="mb-4">
+                     <h3 className="text-lg font-bold text-slate-900">Zone Occupancy Limits</h3>
+                     <p className="text-slate-500 font-medium mt-1">Set maximum allowed occupancy per monitored zone.</p>
+                  </div>
+                  
+                  <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100">
+                     {Object.entries(occupancyThresholds).map(([zone, limit]) => (
+                        <div key={zone} className="p-4 flex items-center justify-between">
+                           <div className="font-bold text-slate-800">{zone}</div>
+                           <div className="flex items-center gap-3">
+                              <span className="text-sm font-medium text-slate-500">Max people:</span>
+                              <input 
+                                type="number" 
+                                value={limit} 
+                                onChange={(e) => setOccupancyThresholds({...occupancyThresholds, [zone]: parseInt(e.target.value) || 0})}
+                                className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-900 text-center focus:border-[#007BC4] outline-none transition" 
+                                min="1"
+                              />
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+
+                  <div className="flex justify-end pt-4">
+                     <button 
+                        onClick={handleSaveSettings} 
+                        disabled={isSaving}
+                        className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md transition disabled:opacity-50"
+                     >
+                        {isSaving ? <Save className="w-4 h-4 animate-pulse" /> : <Save className="w-4 h-4" />} 
+                        {isSaving ? 'Saving...' : 'Save Security Settings'}
+                     </button>
                   </div>
                </div>
             )}
@@ -240,7 +293,7 @@ export default function SettingsTab() {
                            )}
                         </button>
                         <button 
-                           onClick={handleSaveApiUrl} 
+                           onClick={handleSaveSettings} 
                            disabled={isSaving}
                            className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md transition disabled:opacity-50"
                         >

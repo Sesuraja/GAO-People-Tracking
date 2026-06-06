@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, Send, X, Bot, User } from 'lucide-react';
 import { useSimulation } from '../lib/simulation';
+import { AppModeContext } from '../App';
 
 export default function ChatBot() {
   const [isOpen, setIsOpen] = useState(false);
@@ -11,7 +12,9 @@ export default function ChatBot() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { people } = useSimulation();
+  
+  const { mode } = useContext(AppModeContext);
+  const { people } = useSimulation(mode);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
