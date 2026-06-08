@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { gaoApi, RealtimeTag } from './gaoApi';
 import { db, auth } from './firebase';
-import { collection, addDoc, query, orderBy, limit, onSnapshot, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, limit, onSnapshot, doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 
 enum OperationType {
   CREATE = 'create',
@@ -263,6 +263,39 @@ const [dynamicZones, setDynamicZones] = useState<Record<string, { x: number; y: 
                         timestamp: new Date()
                     }).catch(() => {});
 
+                    // Dynamic automated visitor register sync inside Firestore
+                    if (p.role === 'Visitor') {
+                        const visitorId = `VIS-${tag.TagID.substring(0, 4).toUpperCase()}`;
+                        const visitorRef = doc(db, 'visitors', visitorId);
+                        getDoc(visitorRef).then(vSnap => {
+                          if (!vSnap.exists()) {
+                            setDoc(visitorRef, {
+                              id: visitorId,
+                              name: pName,
+                              company: 'GAO RFID Guest',
+                              host: 'security@gaostaff.com',
+                              status: 'Active',
+                              time: `Arrived ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`,
+                              tag: tag.TagID,
+                              email: `${pName.toLowerCase().replace(/\s+/g, '')}@gaoapi-guest.com`,
+                              location: targetZone,
+                              duration: '0m',
+                              path: [targetZone],
+                              arrivalTime: Date.now()
+                            }).catch(() => {});
+                          } else {
+                            const vData = vSnap.data();
+                            const path = vData.path || [];
+                            if (!path.includes(targetZone)) path.push(targetZone);
+                            setDoc(visitorRef, {
+                              status: 'Active',
+                              location: targetZone,
+                              path: path
+                            }, { merge: true }).catch(() => {});
+                          }
+                        }).catch(() => {});
+                    }
+
                 } else {
                     p.lastSeen = new Date(tag.Timestamp + "Z");
                     p.name = pName;
@@ -286,6 +319,24 @@ const [dynamicZones, setDynamicZones] = useState<Record<string, { x: number; y: 
                             toZone: targetZone,
                             timestamp: new Date()
                         }).catch(() => {});
+
+                        // Dynamic automated visitor tracker sync inside Firestore
+                        if (p.role === 'Visitor') {
+                           const visitorId = `VIS-${p.id.substring(0, 4).toUpperCase()}`;
+                           const visitorRef = doc(db, 'visitors', visitorId);
+                           getDoc(visitorRef).then(vSnap => {
+                             if (vSnap.exists()) {
+                               const vData = vSnap.data();
+                               const path = vData.path || [];
+                               if (!path.includes(targetZone)) path.push(targetZone);
+                               setDoc(visitorRef, {
+                                 status: 'Active',
+                                 location: targetZone,
+                                 path: path
+                               }, { merge: true }).catch(() => {});
+                             }
+                           }).catch(() => {});
+                        }
                         
                         if (p.role === 'Visitor' && targetZone === 'Server Room') {
                            addDoc(collection(db, 'alerts'), {
