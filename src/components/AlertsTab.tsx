@@ -79,9 +79,31 @@ export default function AlertsTab({ alerts }: { alerts: AIAlert[] }) {
                     </p>
                     
                     {alert.type === 'security' && (
-                      <div className="mt-4 pt-4 border-t border-rose-200 flex gap-4 text-sm font-medium text-rose-600">
-                        <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" /> Action required</span>
-                        <span className="text-[#007BC4] cursor-pointer hover:underline font-bold">View on map →</span>
+                      <div className="mt-4 pt-4 border-t border-rose-200">
+                         <div className="flex gap-4 text-sm font-medium text-rose-600 mb-3">
+                           <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" /> Action required</span>
+                           <span className="text-[#007BC4] cursor-pointer hover:underline font-bold">View on map →</span>
+                         </div>
+                         <div className="bg-white border text-left border-rose-200 rounded-xl p-4 shadow-sm flex items-start gap-4 hover:border-[#007BC4] transition cursor-pointer group">
+                            <div className="w-24 h-16 bg-slate-100 rounded-lg border border-slate-200 overflow-hidden relative shrink-0">
+                               <div className="absolute top-1 left-1 flex items-center gap-1 z-10">
+                                  <div className="w-1 h-1 bg-red-500 rounded-full animate-pulse" />
+                                  <span className="text-[8px] font-mono font-bold text-white uppercase drop-shadow flex">REC</span>
+                               </div>
+                               {/* Mock CCTV style background */}
+                               <div className="absolute inset-0 bg-slate-800 flex items-center justify-center opacity-90 group-hover:opacity-100 transition">
+                                 <span className="text-[8px] font-mono text-slate-400 absolute bottom-1 right-1">{alert.timestamp.toLocaleTimeString()}</span>
+                               </div>
+                            </div>
+                            <div>
+                               <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                 CCTV Correlation Event
+                                 <Badge className="bg-[#007BC4]/10 text-[#007BC4] border-0 hover:bg-[#007BC4]/20 text-[10px] uppercase">Cam-4A</Badge>
+                               </h4>
+                               <p className="text-xs text-slate-500 font-medium mt-1">Automatic snapshot captured exactly at event trigger time {alert.timestamp.toLocaleTimeString()}.</p>
+                               <span className="text-xs font-bold text-[#007BC4] block mt-1 hover:underline">View high-res frame →</span>
+                            </div>
+                         </div>
                       </div>
                     )}
                   </div>

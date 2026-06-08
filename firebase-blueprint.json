@@ -67,6 +67,28 @@
         },
         "updatedAt": { "type": "string" }
       }
+    },
+    "Visitor": {
+      "title": "Visitor",
+      "description": "Visitor pre-registration and tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "company": { "type": "string" },
+        "host": { "type": "string" },
+        "email": { "type": "string" },
+        "status": { "type": "string" },
+        "time": { "type": "string" },
+        "tag": { "type": "string" },
+        "location": { "type": "string" },
+        "duration": { "type": "string" },
+        "path": { "type": "array" },
+        "qrCodeRef": { "type": "string" },
+        "arrivalTime": { "type": "number" },
+        "isOverstayed": { "type": "boolean" }
+      },
+      "required": ["id", "name", "company", "status"]
     }
   },
   "firestore": {
@@ -89,6 +111,10 @@
     "/settings/{document}": {
       "schema": "Setting",
       "description": "App settings"
+    },
+    "/visitors/{visitorId}": {
+      "schema": "Visitor",
+      "description": "Pre-registered and active visitors"
     }
   }
 }

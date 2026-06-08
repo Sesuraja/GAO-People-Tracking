@@ -59,11 +59,13 @@ const DEFAULT_KPIS: KPIConfig[] = [
 const DEFAULT_PANELS: PanelConfig[] = [
   { id: 'occupancy_panel', title: 'Occupancy & Status', description: 'Device health, live zone distribution tracker, and recent movement activity logs.', visible: true, order: 1, width: '2/3' },
   { id: 'alerts_panel', title: 'Recent Alerts', description: 'Live alerts, security threats, sensor events feed with custom action routing.', visible: true, order: 2, width: '1/3' },
-  { id: 'chart_over_time', title: 'Crowd Flow Trend', description: 'Over-time area trend of RFID tag occurrences showing busiest site intervals.', visible: true, order: 3, width: '1/4' },
-  { id: 'chart_top_zones', title: 'Zone breakdown', description: 'Interactive pie chart showing crowd proportion distribution by active zones.', visible: true, order: 4, width: '1/4' },
-  { id: 'chart_device_status', title: 'Hardware Health', description: 'Visual breakdown of RFID readers, door systems online or requiring warning.', visible: true, order: 5, width: '1/4' },
-  { id: 'chart_heatmap', title: 'Flow Heatmap', description: 'Live heatmap representation showing density hotspots within physical boundaries.', visible: true, order: 6, width: '1/4' },
-  { id: 'tech_footer', title: 'Technology Features', description: 'Core system specs overview of active RFID frequency bands & security protocols.', visible: true, order: 7, width: 'full' }
+  { id: 'attendance_summary', title: 'Attendance Module', description: 'First entry, last exit, and working hours summary.', visible: true, order: 3, width: '1/3' },
+  { id: 'ai_insights', title: 'AI Prediction & Insights', description: 'AI generated summaries, anomaly detection, predictive overcrowding alerts.', visible: true, order: 4, width: '2/3' },
+  { id: 'chart_over_time', title: 'Crowd Flow Trend', description: 'Over-time area trend of RFID tag occurrences showing busiest site intervals.', visible: true, order: 5, width: '1/4' },
+  { id: 'chart_top_zones', title: 'Zone breakdown', description: 'Interactive pie chart showing crowd proportion distribution by active zones.', visible: true, order: 6, width: '1/4' },
+  { id: 'chart_device_status', title: 'Hardware Health', description: 'Visual breakdown of RFID readers, door systems online or requiring warning.', visible: true, order: 7, width: '1/4' },
+  { id: 'chart_heatmap', title: 'Flow Heatmap', description: 'Live heatmap representation showing density hotspots within physical boundaries.', visible: true, order: 8, width: '1/4' },
+  { id: 'tech_footer', title: 'Technology Features', description: 'Core system specs overview of active RFID frequency bands & security protocols.', visible: true, order: 9, width: 'full' }
 ];
 
 export default function DashboardTab({ 
@@ -564,6 +566,55 @@ export default function DashboardTab({
           </div>
         );
 
+      case 'attendance_summary':
+        return (
+          <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col shadow-sm transition hover:shadow-md h-[480px]">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 shrink-0">
+               <h3 className="font-semibold text-slate-900 tracking-tight text-sm">Attendance Summary</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-4">
+              <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg">
+                 <div className="text-[10px] font-bold text-slate-500 uppercase">First Entry (Today)</div>
+                 <div className="text-lg font-bold text-slate-900 mt-1">07:14 AM</div>
+                 <div className="text-[11px] text-slate-500">Alan Turing (Admin)</div>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg">
+                 <div className="text-[10px] font-bold text-slate-500 uppercase">Last Exit (Today)</div>
+                 <div className="text-lg font-bold text-slate-900 mt-1">18:42 PM</div>
+                 <div className="text-[11px] text-slate-500">Grace Hopper (Engineer)</div>
+              </div>
+              <div className="p-3 bg-[#007BC4]/5 border border-[#007BC4]/20 rounded-lg">
+                 <div className="text-[10px] font-bold text-[#007BC4] uppercase">Avg Working Hours</div>
+                 <div className="text-xl font-black text-[#007BC4] mt-1">8h 24m</div>
+                 <div className="text-[11px] text-[#007BC4]/80">+12m vs yesterday</div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'ai_insights':
+        return (
+          <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col shadow-sm transition hover:shadow-md h-[480px]">
+             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 shrink-0">
+               <h3 className="font-semibold text-slate-900 tracking-tight text-sm flex items-center gap-2"><Cpu className="w-4 h-4 text-purple-500" /> AI Insights</h3>
+            </div>
+            <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
+               <div className="bg-purple-50 border border-purple-100 p-4 rounded-lg">
+                  <h4 className="text-xs font-bold text-purple-700 uppercase mb-1">Predictive Alert: Overcrowding</h4>
+                  <p className="text-xs text-purple-900 leading-relaxed font-medium">Based on current movement vectors, the <span className="font-bold">Cafeteria zone</span> is predicted to exceed occupancy limits (150 pax) in approximately 12 minutes. Consider opening overflow areas.</p>
+               </div>
+               <div className="bg-amber-50 border border-amber-100 p-4 rounded-lg mt-2">
+                  <h4 className="text-xs font-bold text-amber-700 uppercase mb-1">Anomaly Detection: Unusual Route</h4>
+                  <p className="text-xs text-amber-900 leading-relaxed font-medium">Tag <span className="font-bold">ID: 8B-F1-0A</span> bypassed the standard security checkpoint and entered through the Loading Dock during non-operational hours.</p>
+               </div>
+               <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg mt-2">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase mb-1">Daily Operations Summary</h4>
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">Operations are nominal. There was a higher than average dwell time in the <span className="font-bold">Assembly Line B</span> (+14% vs norm). Security sweeps maintained standard intervals.</p>
+               </div>
+            </div>
+          </div>
+        );
+
       case 'chart_over_time':
         return (
           <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col shadow-sm transition hover:shadow-md h-[300px]">
@@ -823,13 +874,21 @@ export default function DashboardTab({
           </h2>
           <p className="text-xs text-slate-500 font-medium dark:text-slate-400">Manage real-time personnel analytics, alerts, and facility tracking.</p>
         </div>
-        <button 
-          onClick={openCustomizeModal}
-          className="flex items-center gap-2 px-3.5 py-2 bg-[#007BC4] text-white hover:bg-[#006aa9] rounded-lg text-xs font-bold shadow-md transition-transform active:scale-95 duration-150 cursor-pointer"
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          Customize Dashboard
-        </button>
+        <div className="flex items-center gap-2">
+           <button 
+             onClick={() => alert('Starting PDF generation from current view... Download will begin shortly.')}
+             className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 border border-slate-200 rounded-lg text-xs font-bold shadow-sm transition-transform active:scale-95 duration-150 cursor-pointer"
+           >
+             Export Report
+           </button>
+           <button 
+             onClick={openCustomizeModal}
+             className="flex items-center gap-2 px-3.5 py-2 bg-[#007BC4] text-white hover:bg-[#006aa9] rounded-lg text-xs font-bold shadow-md transition-transform active:scale-95 duration-150 cursor-pointer"
+           >
+             <SlidersHorizontal className="w-3.5 h-3.5" />
+             Customize Dashboard
+           </button>
+        </div>
       </div>
 
       {/* Dynamic KPI Cards Row */}

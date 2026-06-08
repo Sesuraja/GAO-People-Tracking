@@ -7,7 +7,17 @@ import { motion } from 'motion/react';
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useSimulation } from './lib/simulation';
-import { Activity, Bell, Map, Map as MapIcon, Users, BarChart3, Settings, ShieldAlert, Cpu, LayoutDashboard, Radio, PlayCircle, Search, LogOut, Lock } from 'lucide-react';
+import { Activity, Bell, Map, Map as MapIcon, Users, BarChart3, Settings, ShieldAlert, Cpu, LayoutDashboard, Radio, PlayCircle, Search, LogOut, Lock, Clock, Building2, ClipboardCheck, History, MessageSquare, Terminal, Wrench, Sparkles, Box, ShieldCheck } from 'lucide-react';
+import AttendanceTab from './components/AttendanceTab';
+import CommandCenterTab from './components/CommandCenterTab';
+import VisitorsTab from './components/VisitorsTab';
+import AuditTab from './components/AuditTab';
+import DeveloperApiTab from './components/DeveloperApiTab';
+import IncidentsTab from './components/IncidentsTab';
+import AIInsightsTab from './components/AIInsightsTab';
+import MaintenanceTab from './components/MaintenanceTab';
+import DigitalTwinTab from './components/DigitalTwinTab';
+import SlaDashboardTab from './components/SlaDashboardTab';
 import TopBar from './components/TopBar';
 import PeopleTab from './components/PeopleTab';
 import AlertsTab from './components/AlertsTab';
@@ -249,11 +259,20 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
           {(permissions[userRole]?.dashboard ?? true) && <NavItem to="/" icon={<LayoutDashboard size={20}/>} label="Dashboard" />}
           <NavItem to="/live" icon={<Map size={20}/>} label="Live Tracking" />
           {(permissions[userRole]?.playback ?? true) && <NavItem to="/playback" icon={<PlayCircle size={20}/>} label="Playback History" />}
-          <NavItem to="/people" icon={<Users size={20}/>} label="People" />
+          <NavItem to="/people" icon={<Users size={20}/>} label="Personnel" />
+          <NavItem to="/visitors" icon={<ClipboardCheck size={20}/>} label="Visitors" />
+          <NavItem to="/attendance" icon={<Clock size={20}/>} label="Attendance" />
           <NavItem to="/alerts" icon={<Bell size={20}/>} label="Alerts" hasNotification={alerts.some(a => a.type === 'security')} />
-          <NavItem to="/locations" icon={<MapIcon size={20}/>} label="Locations" />
+          <NavItem to="/incidents" icon={<ShieldAlert size={20}/>} label="Incidents" />
+          <NavItem to="/sites" icon={<Building2 size={20}/>} label="Sites & Command" />
+          <NavItem to="/digital-twin" icon={<Box size={20}/>} label="Digital Twin" />
           <NavItem to="/analytics" icon={<BarChart3 size={20}/>} label="Analytics" />
+          <NavItem to="/ai-insights" icon={<Sparkles size={20}/>} label="AI Insights" />
           {(permissions[userRole]?.devices ?? true) && <NavItem to="/devices" icon={<Radio size={20}/>} label="Devices" />}
+          <NavItem to="/maintenance" icon={<Wrench size={20}/>} label="Maintenance" />
+          <NavItem to="/api" icon={<Terminal size={20}/>} label="Developer API" />
+          <NavItem to="/sla" icon={<ShieldCheck size={20}/>} label="SLA Dashboard" />
+          <NavItem to="/audit" icon={<History size={20}/>} label="Audit & Compliance" />
           <NavItem to="/settings" icon={<Settings size={20}/>} label="Settings" />
         </nav>
         
@@ -331,9 +350,17 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                 )
               } />
               <Route path="/people" element={<PeopleTab people={people} />} />
+              <Route path="/visitors" element={<VisitorsTab />} />
+              <Route path="/attendance" element={<AttendanceTab people={people} />} />
               <Route path="/alerts" element={<AlertsTab alerts={alerts} />} />
-              <Route path="/locations" element={<LocationsTab />} />
+              <Route path="/incidents" element={<IncidentsTab />} />
+              <Route path="/sites" element={<CommandCenterTab />} />
+              <Route path="/digital-twin" element={<DigitalTwinTab />} />
               <Route path="/analytics" element={<AnalyticsTab people={people} isLoading={isLoading} />} />
+              <Route path="/ai-insights" element={<AIInsightsTab people={people} />} />
+              <Route path="/maintenance" element={<MaintenanceTab />} />
+              <Route path="/api" element={<DeveloperApiTab />} />
+              <Route path="/sla" element={<SlaDashboardTab />} />
               <Route path="/devices" element={
                 (permissions[userRole]?.devices ?? true) ? (
                   <DevicesTab />
@@ -353,6 +380,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                 )
               } />
               <Route path="/settings" element={<SettingsTab />} />
+              <Route path="/audit" element={<AuditTab />} />
             </Routes>
           </div>
         </div>

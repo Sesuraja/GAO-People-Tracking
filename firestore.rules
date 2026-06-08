@@ -32,5 +32,9 @@ service cloud.firestore {
     match /settings/{document=**} {
       allow read, write: if true;
     }
+
+    match /visitors/{document=**} {
+      allow read, write: if true;
+    }
   }
 }

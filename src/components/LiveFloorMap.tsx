@@ -1,11 +1,12 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Person, Zone } from '../lib/simulation';
 import { useMemo, useState, useEffect } from 'react';
-import { Layers } from 'lucide-react';
+import { Layers, Radio, Activity } from 'lucide-react';
 import floorplanImage from '../assets/images/facility_floorplan_2d_1780726630123.png';
 
 export default function LiveFloorMap({ people, zones, highlightedPersonId, initialFocusZone, floorplanUrl }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, initialFocusZone?: string | null, floorplanUrl?: string | null }) {
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showReaders, setShowReaders] = useState(false);
   const [selectedZone, setSelectedZone] = useState<string | null>(initialFocusZone || null);
 
   useEffect(() => {
@@ -44,6 +45,14 @@ export default function LiveFloorMap({ people, zones, highlightedPersonId, initi
         Heatmap {showHeatmap ? 'On' : 'Off'}
       </button>
 
+      <button 
+        onClick={() => setShowReaders(!showReaders)}
+        className={`absolute top-4 right-40 z-20 px-3 py-1.5 rounded-lg border text-sm font-medium flex items-center gap-2 transition-colors ${showReaders ? 'bg-[#007BC4]/20 border-[#007BC4]/50 text-[#007BC4] shadow-[0_0_15px_rgba(0,123,196,0.2)]' : 'bg-slate-800/50 border-slate-700 hover:bg-slate-700 text-slate-300'}`}
+      >
+        <Radio className="w-4 h-4" />
+        Coverage Zones
+      </button>
+
       {/* Map Container */}
       <div className="relative flex-1 w-full h-full border-0 rounded-lg bg-transparent z-10 overflow-hidden">
         
@@ -78,6 +87,39 @@ export default function LiveFloorMap({ people, zones, highlightedPersonId, initi
              </div>
            );
         })}
+
+        {/* Reader Layer */}
+        {showReaders && (
+           <>
+              <div 
+                 className="absolute border border-[#007BC4]/40 bg-[#007BC4]/10 rounded-full flex items-center justify-center animate-pulse"
+                 style={{ left: '150px', top: '100px', width: '300px', height: '300px', transform: 'translate(-50%, -50%)' }}
+              >
+                  <div className="absolute flex flex-col items-center top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                     <Radio className="w-6 h-6 text-[#007BC4] -mt-6" />
+                     <span className="text-[10px] font-bold text-[#007BC4] bg-[#007BC4]/10 px-2 py-0.5 rounded mt-1 shadow-sm backdrop-blur-sm whitespace-nowrap">Reader A (92% Cov)</span>
+                  </div>
+              </div>
+              <div 
+                 className="absolute border border-slate-500/40 bg-slate-500/10 rounded-full flex items-center justify-center opacity-70"
+                 style={{ left: '600px', top: '250px', width: '350px', height: '350px', transform: 'translate(-50%, -50%)' }}
+              >
+                 <div className="absolute flex flex-col items-center top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                     <Radio className="w-6 h-6 text-slate-500 -mt-6 opacity-50" />
+                     <span className="text-[10px] font-bold text-slate-600 bg-slate-200/80 px-2 py-0.5 rounded mt-1 shadow-sm backdrop-blur-sm whitespace-nowrap">Reader B (Offline)</span>
+                  </div>
+              </div>
+              <div 
+                 className="absolute border border-indigo-500/30 bg-indigo-500/10 rounded-full flex items-center justify-center animate-pulse"
+                 style={{ left: '300px', top: '450px', width: '250px', height: '250px', transform: 'translate(-50%, -50%)' }}
+              >
+                 <div className="absolute flex flex-col items-center top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                     <Radio className="w-6 h-6 text-indigo-500 -mt-6" />
+                     <span className="text-[10px] font-bold text-indigo-500 bg-indigo-500/10 px-2 py-0.5 rounded mt-1 shadow-sm backdrop-blur-sm whitespace-nowrap">Reader C (85% Cov)</span>
+                  </div>
+              </div>
+           </>
+        )}
 
         {/* Heatmap Layer */}
         {showHeatmap && (

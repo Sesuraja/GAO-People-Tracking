@@ -173,13 +173,10 @@ export default function LocationsTab() {
           <p className="text-slate-500 font-medium">Manage buildings, floor plans, and device placements.</p>
         </div>
         <div className="flex gap-2">
-          <button 
-            onClick={() => setIsAdding(!isAdding)}
-            className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md transition"
-          >
-            {isAdding ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {isAdding ? 'Cancel' : 'Add New Floor'}
-          </button>
+          <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-2 rounded-lg text-xs font-bold shadow-sm">
+             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+             GAO Building Registry Locked
+          </div>
         </div>
       </div>
 

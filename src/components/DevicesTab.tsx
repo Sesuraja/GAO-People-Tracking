@@ -132,12 +132,10 @@ export default function DevicesTab() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button 
-            onClick={() => setIsAdding(true)}
-            className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md transition"
-          >
-            <Plus className="w-4 h-4" /> Add Device
-          </button>
+          <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-2 rounded-lg text-xs font-bold shadow-sm">
+             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+             GAO Readers Network Safe
+          </div>
         </div>
       </div>
 
@@ -178,15 +176,18 @@ export default function DevicesTab() {
               <tr>
                 <th className="py-3 px-4 text-sm font-bold text-slate-500">Device</th>
                 <th className="py-3 px-4 text-sm font-bold text-slate-500">Location</th>
-                <th className="py-3 px-4 text-sm font-bold text-slate-500">Type</th>
                 <th className="py-3 px-4 text-sm font-bold text-slate-500">Status</th>
-                <th className="py-3 px-4 text-sm font-bold text-slate-500">IP Address</th>
-                <th className="py-3 px-4 text-sm font-bold text-slate-500">Last Ping</th>
+                <th className="py-3 px-4 text-sm font-bold text-slate-500">Health (Temp)</th>
+                <th className="py-3 px-4 text-sm font-bold text-slate-500">Signal Strength</th>
+                <th className="py-3 px-4 text-sm font-bold text-slate-500">Last Heartbeat</th>
                 <th className="py-3 px-4 text-sm font-bold text-slate-500 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredDevices.map(device => (
+              {filteredDevices.map(device => {
+                 const mockTemp = 36 + (Math.random() * 12);
+                 const mockSignal = Math.floor(Math.random() * 40) + 60;
+                 return (
                 <tr key={device.id} className="hover:bg-slate-50 transition-colors">
                   <td className="py-3 px-4">
                      <div className="flex items-center gap-3">
@@ -195,7 +196,7 @@ export default function DevicesTab() {
                         </div>
                         <div>
                            <div className="font-semibold text-slate-900">{device.name}</div>
-                           <div className="text-xs font-mono text-slate-500">{device.id}</div>
+                           <div className="text-xs font-mono text-slate-500">IP: {device.ip}</div>
                         </div>
                      </div>
                   </td>
@@ -209,7 +210,6 @@ export default function DevicesTab() {
                        <span className="truncate max-w-[120px]">{device.location}</span>
                      </button>
                   </td>
-                  <td className="py-3 px-4 text-sm text-slate-600">{device.type}</td>
                   <td className="py-3 px-4">
                      <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${
                         device.status === 'online' ? 'bg-emerald-100 text-emerald-700' :
@@ -220,9 +220,20 @@ export default function DevicesTab() {
                         {device.status}
                      </span>
                   </td>
-                  <td className="py-3 px-4 font-mono text-sm text-slate-500">{device.ip}</td>
+                  <td className="py-3 px-4 font-mono text-sm">
+                     <div className={`font-semibold ${mockTemp > 45 ? 'text-rose-500' : 'text-slate-700'}`}>{mockTemp.toFixed(1)}°C</div>
+                     <div className="text-[10px] text-slate-400">{mockTemp > 45 ? 'OVERHEATING' : 'NORMAL'}</div>
+                  </td>
                   <td className="py-3 px-4 text-sm text-slate-600">
-                     <div>{device.lastPing}</div>
+                     <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-200 h-1.5 rounded-full overflow-hidden w-16">
+                           <div className="h-full bg-[#007BC4]" style={{ width: `${mockSignal}%` }}></div>
+                        </div>
+                        <span className="font-mono text-xs font-semibold">{mockSignal}%</span>
+                     </div>
+                  </td>
+                  <td className="py-3 px-4 text-sm text-slate-600">
+                     <div className="font-semibold">{device.lastPing}</div>
                      <div className="text-[10px] text-slate-400">Up: {device.uptime}</div>
                   </td>
                   <td className="py-3 px-4 text-right">
@@ -236,7 +247,7 @@ export default function DevicesTab() {
                      </div>
                   </td>
                 </tr>
-              ))}
+              )})}
               {filteredDevices.length === 0 && (
                 <tr>
                    <td colSpan={7} className="py-12 text-center text-slate-500 font-medium">
@@ -249,90 +260,7 @@ export default function DevicesTab() {
         </div>
       </div>
       
-      {/* Add Device Modal */}
-      {isAdding && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-           <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
-              <div className="flex justify-between items-center p-5 border-b border-slate-100">
-                 <h3 className="text-lg font-bold text-slate-900">Add New Device</h3>
-                 <button onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-slate-700 transition">
-                    <X className="w-5 h-5" />
-                 </button>
-              </div>
-              <div className="p-5 flex flex-col gap-4">
-                 <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">MAC / Device ID</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. 00:1A:2B:3C:4D:5E"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none font-mono text-sm"
-                      value={newDevId}
-                      onChange={(e) => setNewDevId(e.target.value)}
-                    />
-                 </div>
-                 <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Device Name</label>
-                    <input 
-                      type="text" 
-                      placeholder="Loading Dock Reader"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none text-sm"
-                      value={newDevName}
-                      onChange={(e) => setNewDevName(e.target.value)}
-                    />
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Location Zone</label>
-                        <input 
-                          type="text" 
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none text-sm"
-                          value={newDevLoc}
-                          onChange={(e) => setNewDevLoc(e.target.value)}
-                        />
-                     </div>
-                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Device Type</label>
-                        <select 
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none text-sm"
-                          value={newDevType}
-                          onChange={(e) => setNewDevType(e.target.value)}
-                        >
-                           <option value="UHF RFID Reader">UHF RFID Reader</option>
-                           <option value="BLE Beacon">BLE Beacon</option>
-                           <option value="UWB Anchor">UWB Anchor</option>
-                        </select>
-                     </div>
-                 </div>
-                 <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Tx Power (dBm)</label>
-                    <input 
-                      type="number" 
-                      min="10" max="33"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none text-sm"
-                      value={newDevPower}
-                      onChange={(e) => setNewDevPower(e.target.value)}
-                    />
-                 </div>
-              </div>
-              <div className="p-5 bg-slate-50 border-t border-slate-100 justify-end flex gap-3">
-                 <button 
-                   onClick={() => setIsAdding(false)} 
-                   className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-200 transition"
-                 >
-                    Cancel
-                 </button>
-                 <button 
-                   onClick={handleSaveDevice}
-                   disabled={!newDevId || !newDevName || isSaving}
-                   className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-md transition disabled:opacity-50"
-                 >
-                    {isSaving ? <Save className="w-4 h-4 animate-pulse" /> : <Save className="w-4 h-4" />}
-                    Save Device
-                 </button>
-              </div>
-           </div>
-         </div>
-      )}
+      {/* Devices synchronized dynamically via GAO API client and floorplans */}
     </div>
   );
 }

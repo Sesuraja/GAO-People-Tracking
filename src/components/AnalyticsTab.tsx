@@ -9,14 +9,19 @@ const COLORS = ['#6366f1', '#38bdf8', '#10b981', '#f59e0b', '#f43f5e'];
 export default function AnalyticsTab({ people, isLoading }: { people: Person[], isLoading?: boolean }) {
   // Aggregate data
   const zoneData = useMemo(() => {
-    const counts = people.reduce((acc, p) => {
-      acc[p.currentZone] = (acc[p.currentZone] || 0) + 1;
+    const defaultData = people.reduce((acc, p) => {
+      if (!acc[p.currentZone]) {
+         acc[p.currentZone] = { count: 0, totalDwell: 0 };
+      }
+      acc[p.currentZone].count += 1;
+      acc[p.currentZone].totalDwell += p.dwellTime;
       return acc;
-    }, {} as Record<string, number>);
+    }, {} as Record<string, {count: number, totalDwell: number}>);
 
-    return Object.keys(counts).map(zone => ({
+    return Object.keys(defaultData).map(zone => ({
       name: zone,
-      occupancy: counts[zone]
+      occupancy: defaultData[zone].count,
+      avgDwell: defaultData[zone].count > 0 ? Math.round(defaultData[zone].totalDwell / defaultData[zone].count) : 0
     }));
   }, [people]);
 
@@ -207,22 +212,35 @@ export default function AnalyticsTab({ people, isLoading }: { people: Person[], 
 
           <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm flex-1 flex flex-col transition hover:shadow-md">
             <CardHeader>
-              <CardTitle className="text-slate-900 dark:text-white">Zone Distribution</CardTitle>
+              <CardTitle className="text-slate-900 dark:text-white">Zone Distribution & Dwell Times</CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 min-h-[150px]">
-               <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={zoneData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                   <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
-                   <YAxis hide />
-                   <Tooltip 
-                     cursor={{ fill: '#f8fafc' }}
-                     contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                     itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
-                   />
-                   <Bar dataKey="occupancy" fill="#007BC4" radius={[4, 4, 0, 0]} />
-                 </BarChart>
-               </ResponsiveContainer>
+            <CardContent className="flex-1 min-h-[150px] flex flex-col gap-4">
+               <div className="h-[150px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={zoneData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                      <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis hide />
+                      <Tooltip 
+                        cursor={{ fill: '#f8fafc' }}
+                        contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
+                      />
+                      <Bar dataKey="occupancy" fill="#007BC4" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+               </div>
+               <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-slate-100">
+                  {zoneData.slice(0, 4).map(z => (
+                     <div key={z.name} className="flex flex-col bg-slate-50 p-2 rounded justify-between">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold truncate">{z.name}</span>
+                        <div className="flex items-center gap-2">
+                           <span className="text-xs font-medium text-slate-700">{z.occupancy} occ.</span>
+                           <span className="text-xs font-semibold text-[#007BC4]">{Math.floor(z.avgDwell/60)}m {z.avgDwell%60}s</span>
+                        </div>
+                     </div>
+                  ))}
+               </div>
             </CardContent>
           </Card>
         </div>

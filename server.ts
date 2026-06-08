@@ -86,6 +86,92 @@ async function startServer() {
     }
   });
 
+  // Comprehensive AI RFID Analysis and Quality Improvement Endpoint
+  app.post('/api/analyze-rfid-results', async (req, res) => {
+    try {
+      const { liveTags, historyRecords } = req.body;
+      
+      const promptText = `
+        You are an expert UHF RFID Systems Analytics AI. Analyze the following real-time and historical personnel scans from our GAO RFID Readers to deliver operational observations, security risk intelligence, and facility flow recommendations ("improved output").
+
+        --- LIVE SCANS ---
+        ${JSON.stringify(liveTags || [])}
+
+        --- HISTORY ARCHIVE LOGS ---
+        ${JSON.stringify(historyRecords || [])}
+
+        --- ANALYTICAL CRITERIA ---
+        1. Look for unexpected dwell times, loitering, or out-of-bounds occurrences (e.g. unescorted visitors entering the Server Room or Engineering Lab).
+        2. Identify bottlenecks or flow issues (e.g. dense scans at Entrance but empty office desks).
+        3. Formulate actionable layout or hardware optimization recommendations (e.g., repositioning reader devices, adding verification gates, or adjusting shift schedule bounds).
+        4. Detail personnel efficiency based on zone transitions.
+      `;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: promptText,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              executiveSummary: { type: Type.STRING },
+              anomalies: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    tagId: { type: Type.STRING },
+                    name: { type: Type.STRING },
+                    zone: { type: Type.STRING },
+                    severity: { type: Type.STRING, enum: ["HIGH", "MEDIUM", "LOW"] },
+                    title: { type: Type.STRING },
+                    description: { type: Type.STRING }
+                  },
+                  required: ["tagId", "severity", "title", "description"]
+                }
+              },
+              optimizations: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    category: { type: Type.STRING },
+                    title: { type: Type.STRING },
+                    impact: { type: Type.STRING, enum: ["HIGH", "MEDIUM", "LOW"] },
+                    description: { type: Type.STRING },
+                    actionableSteps: { type: Type.STRING }
+                  },
+                  required: ["category", "title", "impact", "description"]
+                }
+              },
+              personnelEfficiency: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    tagId: { type: Type.STRING },
+                    name: { type: Type.STRING },
+                    inferredActivity: { type: Type.STRING },
+                    efficiencyScore: { type: Type.INTEGER }, // scale 1-100
+                    dwellTimeInfo: { type: Type.STRING }
+                  },
+                  required: ["tagId", "inferredActivity", "efficiencyScore"]
+                }
+              }
+            }
+          }
+        }
+      });
+
+      const parsedData = JSON.parse(response.text || '{}');
+      res.json(parsedData);
+    } catch (e: any) {
+      console.error('RFID Intelligent Analysis failed:', e);
+      res.status(500).json({ error: e.message || 'Intelligent processing failed' });
+    }
+  });
+
   // AI Chat endpoint
   app.post('/api/staff-chat', async (req, res) => {
     try {

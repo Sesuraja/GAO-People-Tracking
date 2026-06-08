@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Bell, Shield, Network, Database, Users, Layout, Key, RefreshCw, Play, CheckCircle2, AlertTriangle, FileText, Lock, User, Server, Terminal } from 'lucide-react';
+import { Save, Bell, Shield, Network, Database, Users, Layout, Key, RefreshCw, Play, CheckCircle2, AlertTriangle, FileText, Lock, User, Server, Terminal, Workflow } from 'lucide-react';
 import { gaoApi, DEFAULT_HOST } from '../lib/gaoApi';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -490,6 +490,12 @@ export default function SettingsTab() {
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${activeSection === 'integrations' ? 'bg-[#007BC4]/10 text-[#007BC4]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
             >
               <Database className="w-4 h-4" /> Integrations
+            </button>
+            <button 
+              onClick={() => setActiveSection('rules')}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${activeSection === 'rules' ? 'bg-[#007BC4]/10 text-[#007BC4]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+            >
+              <Workflow className="w-4 h-4" /> Alert Rules
             </button>
             <button 
               onClick={() => setActiveSection('apidocs')}
@@ -1502,9 +1508,104 @@ export default function SettingsTab() {
                 </div>
              )}
 
+             {activeSection === 'integrations' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="mb-4">
+                     <h3 className="text-xl font-bold text-slate-900">Third-party Integrations</h3>
+                     <p className="text-slate-500 font-medium mt-1">Configure Enterprise Integrations and External Handlers.</p>
+                  </div>
+                  
+                  <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100">
+                     <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
+                        <div>
+                           <h4 className="font-bold text-slate-800 text-sm">CCTV Camera Sync</h4>
+                           <p className="text-xs text-slate-500 font-medium mt-1">Link RFID scans to nearest camera feed timestamps.</p>
+                        </div>
+                        <button className="text-xs font-bold bg-[#007BC4] text-white px-3 py-1.5 rounded shadow-sm hover:bg-[#006aa9] transition">Configure</button>
+                     </div>
+                     <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
+                        <div>
+                           <h4 className="font-bold text-slate-800 text-sm">Access Control (Turnstiles)</h4>
+                           <p className="text-xs text-slate-500 font-medium mt-1">Open doors automatically when GAO authorized tags approach.</p>
+                        </div>
+                        <button className="text-xs font-bold bg-[#007BC4] text-white px-3 py-1.5 rounded shadow-sm hover:bg-[#006aa9] transition">Configure</button>
+                     </div>
+                     <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
+                        <div>
+                           <h4 className="font-bold text-slate-800 text-sm">Mobile App (Security Staff)</h4>
+                           <p className="text-xs text-slate-500 font-medium mt-1">Provision mobile app access for security guards.</p>
+                        </div>
+                        <button className="text-xs font-bold bg-[#007BC4] text-white px-3 py-1.5 rounded shadow-sm hover:bg-[#006aa9] transition">Manage Access</button>
+                     </div>
+                     <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
+                        <div>
+                           <h4 className="font-bold text-slate-800 text-sm">WhatsApp / SMS Alerts</h4>
+                           <p className="text-xs text-slate-500 font-medium mt-1">Send priority security notifications via external messaging paths.</p>
+                        </div>
+                        <button className="text-xs font-bold bg-slate-200 text-slate-700 px-3 py-1.5 rounded shadow-sm hover:bg-slate-300 transition">Setup Twilio Api</button>
+                     </div>
+                  </div>
+                </div>
+             )}
+
+             {activeSection === 'rules' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="mb-4 flex items-center justify-between">
+                     <div>
+                       <h3 className="text-xl font-bold text-slate-900">Smart Alert Rules Engine</h3>
+                       <p className="text-slate-500 font-medium mt-1">Configure automated conditional actions and security triggers.</p>
+                     </div>
+                     <button className="bg-[#007BC4] text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm hover:bg-[#006aa9] transition">
+                        + New Rule
+                     </button>
+                  </div>
+                  
+                  <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100">
+                     <div className="p-6">
+                        <div className="flex items-center gap-4 mb-4">
+                           <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                              <span className="text-xs font-bold text-slate-500 uppercase">IF</span>
+                           </div>
+                           <div className="font-semibold text-slate-800 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex-1">
+                              Visitor enters Server Room
+                           </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200">
+                              <span className="text-xs font-bold text-emerald-700 uppercase">THEN</span>
+                           </div>
+                           <div className="flex flex-wrap gap-2 flex-1">
+                              <span className="bg-slate-50 font-semibold text-slate-700 text-sm px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">Trigger CCTV</span>
+                              <span className="bg-slate-50 font-semibold text-slate-700 text-sm px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">SMS Security Team</span>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="p-6">
+                        <div className="flex items-center gap-4 mb-4">
+                           <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                              <span className="text-xs font-bold text-slate-500 uppercase">IF</span>
+                           </div>
+                           <div className="font-semibold text-slate-800 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 flex-1">
+                              Asset (IT Equipment) is moving near Exits
+                           </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           <div className="flex items-center gap-2 bg-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-200">
+                              <span className="text-xs font-bold text-emerald-700 uppercase">THEN</span>
+                           </div>
+                           <div className="flex flex-wrap gap-2 flex-1">
+                              <span className="bg-slate-50 font-semibold text-slate-700 text-sm px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">Send Email (IT Admin)</span>
+                              <span className="bg-amber-50 text-amber-700 font-semibold text-sm px-3 py-1.5 rounded-lg border border-amber-200 shadow-sm">Lock Doors</span>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+                </div>
+             )}
+
              {/* Fallback for other sections just for mockup */}
-             {/* Fallback for other sections just for mockup */}
-             {(activeSection !== 'general' && activeSection !== 'security' && activeSection !== 'integrations' && activeSection !== 'notifications' && activeSection !== 'network' && activeSection !== 'apidocs' && activeSection !== 'access') && (
+             {(activeSection !== 'general' && activeSection !== 'security' && activeSection !== 'integrations' && activeSection !== 'notifications' && activeSection !== 'network' && activeSection !== 'apidocs' && activeSection !== 'access' && activeSection !== 'rules') && (
                <div className="py-20 flex flex-col items-center justify-center text-slate-500">
                   <div className="p-4 bg-slate-100 rounded-full mb-4">
                      <Key className="w-8 h-8 text-slate-400" />

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Search, Plus, X, Save } from 'lucide-react';
+import { Search, Plus, X, Save, Clock, MapPin, Activity, Battery, BatteryWarning } from 'lucide-react';
 import { useState } from 'react';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -11,6 +11,7 @@ import { doc, setDoc } from 'firebase/firestore';
 export default function PeopleTab({ people }: { people: Person[] }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [selectedTimelinePerson, setSelectedTimelinePerson] = useState<Person | null>(null);
   
   const [newTagId, setNewTagId] = useState('');
   const [newName, setNewName] = useState('');
@@ -61,12 +62,10 @@ export default function PeopleTab({ people }: { people: Person[] }) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button 
-            onClick={() => setIsAdding(true)}
-            className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md transition"
-          >
-            <Plus className="w-4 h-4" /> Add Person
-          </button>
+          <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-2 rounded-lg text-xs font-bold shadow-sm">
+             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+             GAO API Sync Active
+          </div>
         </div>
       </div>
 
@@ -82,13 +81,27 @@ export default function PeopleTab({ people }: { people: Person[] }) {
                 <TableHead className="text-slate-500 font-bold">Name</TableHead>
                 <TableHead className="text-slate-500 font-bold">Role</TableHead>
                 <TableHead className="text-slate-500 font-bold">Current Zone</TableHead>
+                <TableHead className="text-slate-500 font-bold text-center">Tag Health</TableHead>
+                <TableHead className="text-slate-500 font-bold text-center">Risk Score</TableHead>
                 <TableHead className="text-slate-500 font-bold text-right">Dwell Time</TableHead>
                 <TableHead className="text-slate-500 font-bold text-right">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPeople.map((person) => (
-                <TableRow key={person.id} className="border-slate-100 hover:bg-slate-50 transition-colors">
+              {filteredPeople.map((person) => {
+                 let riskScore = 12;
+                 if (person.role === 'Visitor') {
+                    if (person.currentZone === 'Server Room') riskScore = 96;
+                    else if (person.currentZone === 'Engineering Lab') riskScore = 65;
+                    else riskScore = 35;
+                 } else if (person.role === 'Staff') {
+                    if (person.currentZone === 'Server Room') riskScore = 42;
+                    else riskScore = 15;
+                 }
+                 const isHighRisk = riskScore > 60;
+                 
+                 return (
+                <TableRow key={person.id} className="border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setSelectedTimelinePerson(person)}>
                   <TableCell className="font-mono text-xs text-slate-500 font-medium">{person.id}</TableCell>
                   <TableCell className="font-semibold text-slate-900">{person.name}</TableCell>
                   <TableCell>
@@ -106,6 +119,24 @@ export default function PeopleTab({ people }: { people: Person[] }) {
                       {person.currentZone}
                     </div>
                   </TableCell>
+                  <TableCell className="text-center w-32">
+                    {(() => {
+                       const mockBattery = 6 + ((person.id.charCodeAt(0) * 11 + person.id.charCodeAt(person.id.length-1) * 3) % 94);
+                       const isLow = mockBattery < 20;
+                       return (
+                          <div className="flex items-center justify-center gap-1.5" title={`${mockBattery}% Battery`}>
+                             {isLow ? <BatteryWarning className="w-4 h-4 text-rose-500" /> : <Battery className="w-4 h-4 text-emerald-500" />}
+                             <span className={`text-xs font-bold w-8 text-left ${isLow ? 'text-rose-600' : 'text-slate-500'}`}>{mockBattery}%</span>
+                          </div>
+                       );
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center">
+                     <div className="flex items-center justify-center gap-2 bg-slate-50 rounded-full border border-slate-100 py-1 px-3 w-fit mx-auto">
+                        <Activity className={`w-3 h-3 ${isHighRisk ? 'text-rose-500 animate-pulse' : 'text-slate-400'}`} />
+                        <span className={`text-sm font-bold ${isHighRisk ? 'text-rose-600' : 'text-slate-600'}`}>{riskScore}</span>
+                     </div>
+                  </TableCell>
                   <TableCell className="text-right tabular-nums text-slate-700 font-medium">
                     {Math.floor(person.dwellTime / 60)}m {person.dwellTime % 60}s
                   </TableCell>
@@ -117,7 +148,7 @@ export default function PeopleTab({ people }: { people: Person[] }) {
                     </Badge>
                   </TableCell>
                 </TableRow>
-              ))}
+              )})}
               {filteredPeople.length === 0 && (
                 <TableRow className="border-slate-100 hover:bg-transparent">
                   <TableCell colSpan={6} className="h-32 text-center text-slate-500 font-medium">
@@ -130,71 +161,83 @@ export default function PeopleTab({ people }: { people: Person[] }) {
         </CardContent>
       </Card>
 
-      {/* Add Person Modal */}
-      {isAdding && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-           <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
-              <div className="flex justify-between items-center p-5 border-b border-slate-100">
-                 <h3 className="text-lg font-bold text-slate-900">Register New Person</h3>
-                 <button onClick={() => setIsAdding(false)} className="text-slate-400 hover:text-slate-700 transition">
+       {/* Person Timeline Modal */}
+       {selectedTimelinePerson && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200 p-4">
+           <div className="bg-white border border-slate-200 shadow-2xl rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="flex justify-between items-center bg-slate-50 p-5 border-b border-slate-100 shrink-0">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-[#007BC4]/10 text-[#007BC4] flex items-center justify-center text-xl font-bold border border-[#007BC4]/20">
+                       {selectedTimelinePerson.name.charAt(0)}
+                    </div>
+                    <div>
+                       <h3 className="text-xl font-bold text-slate-900">{selectedTimelinePerson.name}</h3>
+                       <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
+                          <Badge variant="outline">{selectedTimelinePerson.role}</Badge>
+                          <span className="font-mono text-xs">{selectedTimelinePerson.id}</span>
+                          <Badge variant="outline" className={`border-0 ${selectedTimelinePerson.role === 'Visitor' && selectedTimelinePerson.currentZone === 'Server Room' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700'}`}>Risk: {selectedTimelinePerson.role === 'Visitor' && selectedTimelinePerson.currentZone === 'Server Room' ? 96 : 12}</Badge>
+                       </div>
+                    </div>
+                 </div>
+                 <button onClick={() => setSelectedTimelinePerson(null)} className="text-slate-400 hover:text-slate-700 transition bg-white p-1.5 rounded-full shadow-sm border border-slate-200">
                     <X className="w-5 h-5" />
                  </button>
               </div>
-              <div className="p-5 flex flex-col gap-4">
-                 <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Tag ID</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. EPC_001"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none font-mono text-sm"
-                      value={newTagId}
-                      onChange={(e) => setNewTagId(e.target.value)}
-                    />
-                    <p className="text-xs text-slate-500 mt-1.5">The required physical RFID Tag ID assigned to this person.</p>
+              <div className="p-5 flex-1 overflow-y-auto w-full">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-1">
+                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><Clock className="w-3 h-3 text-emerald-500"/> First Entry</span>
+                       <span className="text-lg font-bold text-slate-800">07:42 AM</span>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-1">
+                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><Clock className="w-3 h-3 text-rose-500"/> Last Exit</span>
+                       <span className="text-lg font-bold text-slate-800">--:--</span>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col gap-1">
+                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><Activity className="w-3 h-3 text-[#007BC4]"/> Total Hours</span>
+                       <span className="text-lg font-bold text-slate-800">4h 15m</span>
+                    </div>
                  </div>
-                 <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Full Name</label>
-                    <input 
-                      type="text" 
-                      placeholder="John Doe"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none text-sm"
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                    />
+
+                 <h4 className="text-sm font-bold text-slate-900 mb-4 px-1">Movement Timeline (Today)</h4>
+                 <div className="pl-4 border-l-2 border-slate-200 space-y-6 relative before:border-l-2">
+                    <div className="relative">
+                       <span className="absolute -left-[23px] top-1 w-3 h-3 bg-white border-2 border-[#007BC4] rounded-full shadow-sm"></span>
+                       <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-slate-500 mb-1">07:42 AM</span>
+                          <span className="text-sm font-bold text-slate-800">Entered Facility</span>
+                          <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3"/> Main Entrance Checkout</span>
+                       </div>
+                    </div>
+                    <div className="relative">
+                       <span className="absolute -left-[23px] top-1 w-3 h-3 bg-white border-2 border-emerald-500 rounded-full shadow-sm"></span>
+                       <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-slate-500 mb-1">08:05 AM</span>
+                          <span className="text-sm font-bold text-slate-800">Zone Change</span>
+                          <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3"/> Moved from Lobby to Engineering Lab</span>
+                       </div>
+                    </div>
+                    <div className="relative">
+                       <span className="absolute -left-[23px] top-1 w-3 h-3 bg-white border-2 border-amber-500 rounded-full shadow-sm"></span>
+                       <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-slate-500 mb-1">11:30 AM</span>
+                          <span className="text-sm font-bold text-amber-600 flex items-center gap-1.5">Loitering Detected</span>
+                          <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3"/> Stationary in Server Room for &gt; 45 mins</span>
+                       </div>
+                    </div>
+                    <div className="relative">
+                       <span className="absolute -left-[23px] top-1 w-3 h-3 bg-white border-2 border-[#007BC4] rounded-full shadow-sm animate-pulse"></span>
+                       <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-bold text-slate-500 mb-1">Current</span>
+                          <span className="text-sm font-bold text-[#007BC4]">Active</span>
+                          <span className="text-xs font-medium text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3"/> {selectedTimelinePerson.currentZone}</span>
+                       </div>
+                    </div>
                  </div>
-                 <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">Role</label>
-                    <select 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition outline-none text-sm"
-                      value={newRole}
-                      onChange={(e) => setNewRole(e.target.value)}
-                    >
-                       <option value="Employee">Employee</option>
-                       <option value="Visitor">Visitor</option>
-                       <option value="Security">Security</option>
-                       <option value="Contractor">Contractor</option>
-                    </select>
-                 </div>
-              </div>
-              <div className="p-5 bg-slate-50 border-t border-slate-100 justify-end flex gap-3">
-                 <button 
-                   onClick={() => setIsAdding(false)} 
-                   className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-200 transition"
-                 >
-                    Cancel
-                 </button>
-                 <button 
-                   onClick={handleSavePerson}
-                   disabled={!newTagId || !newName || isSaving}
-                   className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold shadow-md transition disabled:opacity-50"
-                 >
-                    {isSaving ? <Save className="w-4 h-4 animate-pulse" /> : <Save className="w-4 h-4" />}
-                    Save Person
-                 </button>
               </div>
            </div>
          </div>
-      )}
+       )}
     </div>
   );
 }

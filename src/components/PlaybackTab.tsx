@@ -175,7 +175,7 @@ export default function PlaybackTab({ people, zones }: { people: Person[], zones
             </div>
             <div className="flex-1 flex flex-col xl:flex-row gap-6 min-h-0">
                <div className="flex-1 bg-white rounded-xl border border-slate-200 p-4 relative shadow-sm overflow-hidden flex flex-col">
-                  <PlaybackMap people={currentFramePeople} zones={zones} highlightedPersonId={highlightedPersonId} />
+                  <PlaybackMap historyFrames={simulatedHistory} currentFrameIndex={timeIndex} zones={zones} highlightedPersonId={highlightedPersonId} />
                </div>
 
                <div className="w-full xl:w-80 flex flex-col gap-4 shrink-0">
@@ -294,8 +294,9 @@ export default function PlaybackTab({ people, zones }: { people: Person[], zones
   );
 }
 
-function PlaybackMap({ people, zones, highlightedPersonId }: { people: Person[], zones: any, highlightedPersonId: string | null }) {
+function PlaybackMap({ historyFrames, currentFrameIndex, zones, highlightedPersonId }: { historyFrames: Person[][], currentFrameIndex: number, zones: any, highlightedPersonId: string | null }) {
   const zoneEntries = Object.entries(zones);
+  const currentPeople = historyFrames[currentFrameIndex] || [];
   
   return (
     <div className="w-full h-full relative bg-transparent overflow-hidden flex items-center justify-center">
@@ -317,7 +318,39 @@ function PlaybackMap({ people, zones, highlightedPersonId }: { people: Person[],
            </div>
         ))}
 
-        {people.map(p => {
+        <svg className="absolute inset-0 w-full h-full z-10 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+           {historyFrames[0].map((baselinePerson, i) => {
+              const isVisitor = baselinePerson.role === 'Visitor';
+              const isSecurity = baselinePerson.role === 'Security';
+              const color = isVisitor ? '#f59e0b' : isSecurity ? '#10b981' : '#007BC4';
+              
+              if (highlightedPersonId && highlightedPersonId !== baselinePerson.id) return null;
+
+              // Build points string taking this person's coordinate from frame 0 up to current frame index
+              const pointsStr = historyFrames.slice(0, currentFrameIndex + 1).map(frame => {
+                 const p = frame[i];
+                 return p ? `${p.x},${p.y}` : ''; // Since we are using percentages directly
+              }).filter(Boolean).map((pt) => { // need to compute percentage space into svg space but we can't easily. So we will use a relative viewBox or standard % coords using percentages. Since SVG polyline doesn't support percentage coords natively, we must write a small workaround. We'll use 100x100 viewBox and coords 0-100.
+                 return pt;
+              }).join(' ');
+
+              if (!pointsStr) return null;
+
+              return (
+                 <polyline
+                    key={`trail-${baselinePerson.id}`}
+                    points={pointsStr}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="0.5" // very thin relative to 100x100
+                    strokeDasharray="1 1"
+                    strokeOpacity={highlightedPersonId ? 0.9 : 0.3}
+                 />
+              )
+           })}
+        </svg>
+
+        {currentPeople.map(p => {
           const isHighlighted = highlightedPersonId === p.id;
           const opacity = highlightedPersonId ? (isHighlighted ? 1 : 0.2) : 1;
           
