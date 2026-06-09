@@ -20,7 +20,14 @@ import {
   RotateCcw, 
   Check, 
   SlidersHorizontal, 
-  Save 
+  Save,
+  Server,
+  Wifi,
+  WifiOff,
+  ArrowRight,
+  Key,
+  ExternalLink,
+  Trash2
 } from 'lucide-react';
 import AIFeed from './AIFeed';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
@@ -37,6 +44,7 @@ export interface KPIConfig {
   title: string;
   visible: boolean;
   order: number;
+  deleted?: boolean;
 }
 
 export interface PanelConfig {
@@ -46,6 +54,7 @@ export interface PanelConfig {
   visible: boolean;
   order: number;
   width: '1/4' | '1/3' | '1/2' | '2/3' | 'full';
+  deleted?: boolean;
 }
 
 const DEFAULT_KPIS: KPIConfig[] = [
@@ -83,6 +92,20 @@ export default function DashboardTab({
 }) {
   const navigate = useNavigate();
   const { mode } = useContext(AppModeContext);
+  const [apiConfig, setApiConfig] = useState({
+    url: '',
+    authType: 'none',
+    apiKeyHeader: 'X-API-Key'
+  });
+
+  useEffect(() => {
+    setApiConfig({
+      url: localStorage.getItem('gao_api_url') || '',
+      authType: localStorage.getItem('gao_auth_type') || 'none',
+      apiKeyHeader: localStorage.getItem('gao_api_key_header') || 'X-API-Key'
+    });
+  }, []);
+
   const [registeredCount, setRegisteredCount] = useState<number>(0);
   const [recentMovements, setRecentMovements] = useState<any[]>([]);
   const [timelineData, setTimelineData] = useState<any[]>([]);
@@ -226,14 +249,14 @@ export default function DashboardTab({
              // Merge missing properties if defaults changed
              const mergedKpis = DEFAULT_KPIS.map(def => {
                const saved = data.kpis.find((k: any) => k.id === def.id);
-               return saved ? { ...def, visible: saved.visible, order: saved.order } : def;
+               return saved ? { ...def, visible: saved.visible, order: saved.order, deleted: saved.deleted } : def;
              });
              setKpis(mergedKpis.sort((a,b) => a.order - b.order));
           }
           if (data.panels && Array.isArray(data.panels)) {
              const mergedPanels = DEFAULT_PANELS.map(def => {
                const saved = data.panels.find((p: any) => p.id === def.id);
-               return saved ? { ...def, visible: saved.visible, order: saved.order, width: saved.width || def.width } : def;
+               return saved ? { ...def, visible: saved.visible, order: saved.order, width: saved.width || def.width, deleted: saved.deleted } : def;
              });
              setPanels(mergedPanels.sort((a,b) => a.order - b.order));
           }
@@ -267,33 +290,47 @@ export default function DashboardTab({
     setTempKpis(prev => prev.map(k => k.id === id ? { ...k, visible: !k.visible } : k));
   };
 
+  const handleDeleteKpi = (id: string) => {
+    setTempKpis(prev => prev.map(k => k.id === id ? { ...k, deleted: true, visible: false } : k));
+  };
+
   const handleMoveKpiUp = (index: number) => {
     if (index <= 0) return;
     setTempKpis(prev => {
-      const sorted = [...prev].sort((a, b) => a.order - b.order);
-      const updated = [...sorted];
+      const active = prev.filter(k => !k.deleted).sort((a,b) => a.order - b.order);
+      const deleted = prev.filter(k => k.deleted);
+      const updated = [...active];
+      
       const temp = updated[index].order;
       updated[index].order = updated[index - 1].order;
       updated[index - 1].order = temp;
-      return updated.sort((a, b) => a.order - b.order);
+      
+      return [...updated, ...deleted].sort((a,b) => a.order - b.order);
     });
   };
 
   const handleMoveKpiDown = (index: number) => {
-    if (index >= tempKpis.length - 1) return;
     setTempKpis(prev => {
-      const sorted = [...prev].sort((a, b) => a.order - b.order);
-      const updated = [...sorted];
+      const active = prev.filter(k => !k.deleted).sort((a,b) => a.order - b.order);
+      if (index >= active.length - 1) return prev;
+      const deleted = prev.filter(k => k.deleted);
+      const updated = [...active];
+      
       const temp = updated[index].order;
       updated[index].order = updated[index + 1].order;
-      updated[index - 1 + 2].order = temp; // index + 1
-      return updated.sort((a, b) => a.order - b.order);
+      updated[index + 1].order = temp;
+      
+      return [...updated, ...deleted].sort((a,b) => a.order - b.order);
     });
   };
 
   // Panel Edit helpers
   const handleTogglePanel = (id: string) => {
     setTempPanels(prev => prev.map(p => p.id === id ? { ...p, visible: !p.visible } : p));
+  };
+
+  const handleDeletePanel = (id: string) => {
+    setTempPanels(prev => prev.map(p => p.id === id ? { ...p, deleted: true, visible: false } : p));
   };
 
   const handleResizePanel = (id: string, width: '1/4' | '1/3' | '1/2' | '2/3' | 'full') => {
@@ -303,24 +340,30 @@ export default function DashboardTab({
   const handleMovePanelUp = (index: number) => {
     if (index <= 0) return;
     setTempPanels(prev => {
-      const sorted = [...prev].sort((a, b) => a.order - b.order);
-      const updated = [...sorted];
+      const active = prev.filter(p => !p.deleted).sort((a,b) => a.order - b.order);
+      const deleted = prev.filter(p => p.deleted);
+      const updated = [...active];
+      
       const temp = updated[index].order;
       updated[index].order = updated[index - 1].order;
       updated[index - 1].order = temp;
-      return updated.sort((a, b) => a.order - b.order);
+      
+      return [...updated, ...deleted].sort((a,b) => a.order - b.order);
     });
   };
 
   const handleMovePanelDown = (index: number) => {
-    if (index >= tempPanels.length - 1) return;
     setTempPanels(prev => {
-      const sorted = [...prev].sort((a, b) => a.order - b.order);
-      const updated = [...sorted];
+      const active = prev.filter(p => !p.deleted).sort((a,b) => a.order - b.order);
+      if (index >= active.length - 1) return prev;
+      const deleted = prev.filter(p => p.deleted);
+      const updated = [...active];
+      
       const temp = updated[index].order;
       updated[index].order = updated[index + 1].order;
       updated[index + 1].order = temp;
-      return updated.sort((a, b) => a.order - b.order);
+      
+      return [...updated, ...deleted].sort((a,b) => a.order - b.order);
     });
   };
 
@@ -410,13 +453,13 @@ export default function DashboardTab({
   // Sorting configurations
   const sortedVisibleKpis = useMemo(() => {
     return [...kpis]
-      .filter(k => k.visible)
+      .filter(k => k.visible && !k.deleted)
       .sort((a, b) => a.order - b.order);
   }, [kpis]);
 
   const sortedVisiblePanels = useMemo(() => {
     return [...panels]
-      .filter(p => p.visible)
+      .filter(p => p.visible && !p.deleted)
       .sort((a, b) => a.order - b.order);
   }, [panels]);
 
@@ -891,6 +934,105 @@ export default function DashboardTab({
         </div>
       </div>
 
+      {/* GAO RFID Controller Server Connection Banner */}
+      {mode === 'real' ? (
+        <div id="gao_server_connected_banner" className="bg-white border border-[#10b981]/35 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-[#10b981]" />
+          <div className="flex items-start gap-4 flex-1">
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 shrink-0 text-emerald-600">
+              <Server className="w-5 h-5 animate-pulse" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-slate-900 text-sm">GAO RFID Server Live Connection Active</span>
+                <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase flex items-center gap-1 border border-emerald-200">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                  </span>
+                  Real-Time Sync Ready
+                </span>
+                <span className="bg-blue-50 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase flex items-center gap-1 border border-blue-200">
+                  <Wifi className="w-3 h-3" />
+                  3s polling
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-2xl">
+                Polling scans directly from your physical server controller. This page compiles UHF tag history telemetry, track coordinates, and triggers immediate alarms on safety hazards.
+              </p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 pt-1 font-mono text-[10px]">
+                <div className="flex items-center gap-1 text-slate-500">
+                  <span className="font-bold">Target Host:</span>
+                  <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 uppercase tracking-tight font-medium max-w-[240px] truncate" title={apiConfig.url || "https://www.i360services.com/peopletrackinguhf"}>
+                    {apiConfig.url || "https://www.i360services.com/peopletrackinguhf"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-slate-500">
+                  <span className="font-bold">Auth Strategy:</span>
+                  <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 uppercase tracking-tight font-medium">
+                    {apiConfig.authType === 'api_key' ? `API Key [Header: ${apiConfig.apiKeyHeader}]` : apiConfig.authType === 'bearer' ? 'Bearer JWT Bearer' : apiConfig.authType === 'basic' ? 'Basic Auth (User-Pass)' : apiConfig.authType === 'oauth' ? 'OAuth 2.0 Credentials' : 'None / Public Server'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-2 md:mt-0 shrink-0">
+            <button 
+              id="configure-connection-credentials-btn"
+              onClick={() => navigate('/settings', { state: { focusSection: 'apidocs' } })}
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-750 px-4 py-2 rounded-lg text-xs font-bold border border-slate-200 transition-colors cursor-pointer"
+            >
+              <Key className="w-3.5 h-3.5 text-slate-500" />
+              Configure Credentials
+            </button>
+            <button 
+              id="sandbox-test-btn"
+              onClick={() => navigate('/settings', { state: { focusSection: 'apidocs' } })}
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-750 px-4 py-2 rounded-lg text-xs font-bold border border-slate-200 transition-colors cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+              Sandbox Console
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div id="gao_server_simulated_banner" className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500" />
+          <div className="flex items-start gap-4 flex-1">
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-100/60 shrink-0 text-amber-600">
+              <WifiOff className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-slate-900 text-sm">Currently Running in Simulated Demo Mode</span>
+                <span className="bg-amber-50 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border border-amber-200">
+                  Offline Playground Dataset
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-2xl">
+                The dashboard is currently running in simulated/mock mode. To connect your physical old server's API Key and display your real live production UHF employee tracking scans, switch to Real Connection Mode.
+              </p>
+              <div className="flex flex-wrap items-center gap-3 mt-2 font-semibold text-[11px] text-amber-700">
+                <span>✓ Isolated local tracking sweeps</span>
+                <span>•</span>
+                <span>✓ High-fidelity loitering models</span>
+                <span>•</span>
+                <span>✓ Simulated emergency hazards</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-2 md:mt-0 shrink-0">
+            <button 
+              id="dashboard_sim_to_config_btn"
+              onClick={() => navigate('/settings', { state: { focusSection: 'apidocs' } })}
+              className="flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-lg text-xs font-bold border border-amber-500 shadow-sm transition-transform active:scale-95 duration-100 cursor-pointer"
+            >
+              Configure GAO API Key <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Dynamic KPI Cards Row */}
       {sortedVisibleKpis.length > 0 ? (
         <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-${Math.min(sortedVisibleKpis.length, 5)} gap-4 shrink-0`}>
@@ -988,8 +1130,9 @@ export default function DashboardTab({
                   
                   <div className="flex flex-col gap-2">
                     {[...tempKpis]
+                      .filter(k => !k.deleted)
                       .sort((a,b) => a.order - b.order)
-                      .map((kpi, idx) => {
+                      .map((kpi, idx, arr) => {
                         return (
                           <div 
                             key={kpi.id} 
@@ -1018,11 +1161,18 @@ export default function DashboardTab({
                               </button>
                               <button 
                                 onClick={() => handleMoveKpiDown(idx)}
-                                disabled={idx === tempKpis.length - 1}
+                                disabled={idx === arr.length - 1}
                                 className="p-1 rounded bg-white hover:bg-slate-200 text-slate-500 disabled:opacity-20 transition shadow-xs border border-slate-100"
                                 title="Move Down"
                               >
                                 <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteKpi(kpi.id)}
+                                className="p-1 rounded bg-white hover:bg-red-50 text-red-500 hover:text-red-700 transition shadow-xs border border-slate-100 ml-1 cursor-pointer"
+                                title="Delete Option"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </div>
@@ -1038,8 +1188,9 @@ export default function DashboardTab({
 
                   <div className="flex flex-col gap-3">
                     {[...tempPanels]
+                      .filter(p => !p.deleted)
                       .sort((a,b) => a.order - b.order)
-                      .map((panel, idx) => {
+                      .map((panel, idx, arr) => {
                         return (
                           <div 
                             key={panel.id} 
@@ -1072,11 +1223,18 @@ export default function DashboardTab({
                                 </button>
                                 <button 
                                   onClick={() => handleMovePanelDown(idx)}
-                                  disabled={idx === tempPanels.length - 1}
+                                  disabled={idx === arr.length - 1}
                                   className="p-1 rounded bg-white hover:bg-slate-200 text-slate-500 disabled:opacity-20 transition shadow-xs border border-slate-100"
                                   title="Move Down"
                                 >
                                   <ArrowDown className="w-3.5 h-3.5" />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeletePanel(panel.id)}
+                                  className="p-1 rounded bg-white hover:bg-red-50 text-red-500 hover:text-red-700 transition shadow-xs border border-slate-100 ml-1 cursor-pointer"
+                                  title="Delete Option"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </div>

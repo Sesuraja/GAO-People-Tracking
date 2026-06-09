@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Bell, Shield, Network, Database, Users, Layout, Key, RefreshCw, Play, CheckCircle2, AlertTriangle, FileText, Lock, User, Server, Terminal, Workflow, Sparkles } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Save, Bell, Shield, Network, Database, Users, Layout, Key, RefreshCw, Play, CheckCircle2, AlertTriangle, FileText, Lock, User, Server, Terminal, Workflow, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { gaoApi, DEFAULT_HOST } from '../lib/gaoApi';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -7,7 +8,14 @@ import { AppModeContext } from '../App';
 
 export default function SettingsTab() {
   const { mode } = React.useContext(AppModeContext);
+  const location = useLocation();
   const [activeSection, setActiveSection] = useState('apidocs');
+
+  useEffect(() => {
+    if (location.state && location.state.focusSection) {
+      setActiveSection(location.state.focusSection);
+    }
+  }, [location]);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [apiUrl, setApiUrl] = useState(DEFAULT_HOST);
@@ -24,6 +32,8 @@ export default function SettingsTab() {
   const [oauthClientId, setOauthClientId] = useState('');
   const [oauthClientSecret, setOauthClientSecret] = useState('');
   const [oauthTokenUrl, setOauthTokenUrl] = useState('');
+  const [legacyGaoApiKey, setLegacyGaoApiKey] = useState('');
+  const [showLegacyKey, setShowLegacyKey] = useState(false);
 
   // Interactive sandbox state
   const [activeEndpoint, setActiveEndpoint] = useState('get_realtime');
@@ -342,6 +352,23 @@ export default function SettingsTab() {
       try {
         const docRef = doc(db, 'settings', 'global');
         const docSnap = await getDoc(docRef);
+        
+        let userLegacyKey = '';
+        if (auth.currentUser) {
+          try {
+            const userDocRef = doc(db, 'settings', `user_settings_${auth.currentUser.uid}`);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists()) {
+              const userData = userDocSnap.data();
+              if (userData.legacyGaoApiKey !== undefined) {
+                userLegacyKey = userData.legacyGaoApiKey;
+              }
+            }
+          } catch (err) {
+            console.warn('Could not load user-specific legacy API key:', err);
+          }
+        }
+
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.apiUrl !== undefined) {
@@ -372,6 +399,14 @@ export default function SettingsTab() {
           if (data.oauthClientId !== undefined) setOauthClientId(data.oauthClientId);
           if (data.oauthClientSecret !== undefined) setOauthClientSecret(data.oauthClientSecret);
           if (data.oauthTokenUrl !== undefined) setOauthTokenUrl(data.oauthTokenUrl);
+
+          if (userLegacyKey) {
+            setLegacyGaoApiKey(userLegacyKey);
+          } else if (data.legacyGaoApiKey !== undefined) {
+            setLegacyGaoApiKey(data.legacyGaoApiKey);
+          } else {
+            setLegacyGaoApiKey(localStorage.getItem('gao_legacy_api_key') || '');
+          }
         } else {
           const savedUrl = localStorage.getItem('gao_api_url') || DEFAULT_HOST;
           setApiUrl(savedUrl);
@@ -386,6 +421,8 @@ export default function SettingsTab() {
           setOauthClientId(localStorage.getItem('gao_oauth_client_id') || '');
           setOauthClientSecret(localStorage.getItem('gao_oauth_client_secret') || '');
           setOauthTokenUrl(localStorage.getItem('gao_oauth_token_url') || '');
+
+          setLegacyGaoApiKey(localStorage.getItem('gao_legacy_api_key') || '');
         }
       } catch (err) {
         console.error('Error fetching settings:', err);
@@ -416,8 +453,22 @@ export default function SettingsTab() {
         password,
         oauthClientId,
         oauthClientSecret,
-        oauthTokenUrl
+        oauthTokenUrl,
+        legacyGaoApiKey
       }, { merge: true });
+
+      if (auth.currentUser) {
+        try {
+          await setDoc(doc(db, 'settings', `user_settings_${auth.currentUser.uid}`), {
+            userId: auth.currentUser.uid,
+            email: auth.currentUser.email,
+            legacyGaoApiKey,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (authErr) {
+          console.warn('Non-blocking config save to user sub-settings document failed:', authErr);
+        }
+      }
 
       localStorage.setItem('gao_api_url', apiUrl);
       localStorage.setItem('gao_auth_type', authType);
@@ -429,6 +480,7 @@ export default function SettingsTab() {
       localStorage.setItem('gao_oauth_client_id', oauthClientId);
       localStorage.setItem('gao_oauth_client_secret', oauthClientSecret);
       localStorage.setItem('gao_oauth_token_url', oauthTokenUrl);
+      localStorage.setItem('gao_legacy_api_key', legacyGaoApiKey);
 
       gaoApi.setHost(apiUrl);
       setTestResult(null);
@@ -637,8 +689,32 @@ export default function SettingsTab() {
                          <p className="text-xs text-slate-500 mt-2 font-medium">Used for syncing long-term tracking data and reports.</p>
                       </div>
                       <div className="p-6">
-                         <label className="block text-sm font-bold text-slate-700 mb-2">Third-Party API Key</label>
-                         <input type="password" placeholder="sk_live_..." defaultValue="sk_live_definitely_a_secure_key" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition font-mono text-sm" />
+                         <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center justify-between">
+                            <span>Legacy GAO Server API Key</span>
+                            <span className="text-[10px] text-slate-400 font-mono tracking-tight font-normal uppercase">Secure Key</span>
+                         </label>
+                         <div className="relative">
+                            <input 
+                               type={showLegacyKey ? "text" : "password"} 
+                               placeholder="gao_legacy_key_abc123..." 
+                               value={legacyGaoApiKey} 
+                               onChange={(e) => setLegacyGaoApiKey(e.target.value)} 
+                               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition font-mono text-sm pr-10" 
+                            />
+                            <button
+                               type="button"
+                               onClick={() => setShowLegacyKey(!showLegacyKey)}
+                               className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 transition"
+                               title={showLegacyKey ? "Hide key" : "Show key"}
+                            >
+                               {showLegacyKey ? (
+                                  <EyeOff className="w-4 h-4" />
+                               ) : (
+                                  <Eye className="w-4 h-4" />
+                                )}
+                            </button>
+                         </div>
+                         <p className="text-xs text-slate-500 mt-2 font-medium">Used for secure authentication handshake with legacy GAO system services. Stored in Firestore user settings.</p>
                       </div>
                    </div>
 
