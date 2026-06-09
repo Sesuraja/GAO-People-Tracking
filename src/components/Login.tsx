@@ -52,7 +52,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg px-4 py-2 outline-none focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] transition"
-                placeholder="admin@gaostaff.com"
+                placeholder="admin@domain.com"
               />
             </div>
             

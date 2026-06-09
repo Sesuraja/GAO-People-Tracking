@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Bell, Shield, Network, Database, Users, Layout, Key, RefreshCw, Play, CheckCircle2, AlertTriangle, FileText, Lock, User, Server, Terminal, Workflow } from 'lucide-react';
+import { Save, Bell, Shield, Network, Database, Users, Layout, Key, RefreshCw, Play, CheckCircle2, AlertTriangle, FileText, Lock, User, Server, Terminal, Workflow, Sparkles } from 'lucide-react';
 import { gaoApi, DEFAULT_HOST } from '../lib/gaoApi';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
@@ -7,7 +7,7 @@ import { AppModeContext } from '../App';
 
 export default function SettingsTab() {
   const { mode } = React.useContext(AppModeContext);
-  const [activeSection, setActiveSection] = useState('general');
+  const [activeSection, setActiveSection] = useState('apidocs');
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [apiUrl, setApiUrl] = useState(DEFAULT_HOST);
@@ -623,41 +623,77 @@ export default function SettingsTab() {
                </div>
             )}
 
-            {activeSection === 'integrations' && (
-               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="mb-4">
-                     <h3 className="text-xl font-bold text-slate-900">API & Database Integrations</h3>
-                     <p className="text-slate-500 font-medium mt-1">Connect your external database and API services to sync personnel data.</p>
-                  </div>
-                  
-                  <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100">
-                     <div className="p-6">
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Database Connection String</label>
-                        <input type="password" placeholder="postgresql://user:password@localhost:5432/gao_db" defaultValue="postgresql://admin:supersecret@10.0.1.55:5432/gao_core" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition font-mono text-sm" />
-                        <p className="text-xs text-slate-500 mt-2 font-medium">Used for syncing long-term tracking data and reports.</p>
-                     </div>
-                     <div className="p-6">
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Third-Party API Key</label>
-                        <input type="password" placeholder="sk_live_..." defaultValue="sk_live_definitely_a_secure_key" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition font-mono text-sm" />
-                     </div>
-                  </div>
+                         {activeSection === 'integrations' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                   <div className="mb-4">
+                      <h3 className="text-xl font-bold text-slate-900">API & Database Integrations</h3>
+                      <p className="text-slate-500 font-medium mt-1">Connect your external database and API services to sync personnel data.</p>
+                   </div>
+                   
+                   <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100">
+                      <div className="p-6">
+                         <label className="block text-sm font-bold text-slate-700 mb-2">Database Connection String</label>
+                         <input type="password" placeholder="postgresql://user:password@localhost:5432/gao_db" defaultValue="postgresql://admin:supersecret@10.0.1.55:5432/gao_core" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition font-mono text-sm" />
+                         <p className="text-xs text-slate-500 mt-2 font-medium">Used for syncing long-term tracking data and reports.</p>
+                      </div>
+                      <div className="p-6">
+                         <label className="block text-sm font-bold text-slate-700 mb-2">Third-Party API Key</label>
+                         <input type="password" placeholder="sk_live_..." defaultValue="sk_live_definitely_a_secure_key" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition font-mono text-sm" />
+                      </div>
+                   </div>
 
-                  <div className="flex justify-between items-center pt-4">
-                     <div>
-                     </div>
-                     <div className="flex gap-3">
-                        <button 
-                           onClick={handleSaveSettings} 
-                           disabled={isSaving}
-                           className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md transition disabled:opacity-50"
-                        >
-                           {isSaving ? <Save className="w-4 h-4 animate-pulse" /> : <Save className="w-4 h-4" />} 
-                           {isSaving ? 'Saving...' : 'Save Configuration'}
-                        </button>
-                     </div>
-                  </div>
-               </div>
-            )}
+                   <div className="mb-4 pt-4 border-t border-slate-100">
+                      <h3 className="text-xl font-bold text-slate-900">Third-party Enterprise Integrations</h3>
+                      <p className="text-slate-500 font-medium mt-1">Configure Enterprise Integrations and External Handlers.</p>
+                   </div>
+                   
+                   <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100">
+                      <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
+                         <div>
+                            <h4 className="font-bold text-slate-800 text-sm">CCTV Camera Sync</h4>
+                            <p className="text-xs text-slate-500 font-medium mt-1">Link RFID scans to nearest camera feed timestamps.</p>
+                         </div>
+                         <button className="text-xs font-bold bg-[#007BC4] text-white px-3 py-1.5 rounded shadow-sm hover:bg-[#006aa9] transition">Configure</button>
+                      </div>
+                      <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
+                         <div>
+                            <h4 className="font-bold text-slate-800 text-sm">Access Control (Turnstiles)</h4>
+                            <p className="text-xs text-slate-500 font-medium mt-1">Open doors automatically when GAO authorized tags approach.</p>
+                         </div>
+                         <button className="text-xs font-bold bg-[#007BC4] text-white px-3 py-1.5 rounded shadow-sm hover:bg-[#006aa9] transition">Configure</button>
+                      </div>
+                      <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
+                         <div>
+                            <h4 className="font-bold text-slate-800 text-sm">Mobile App (Security Staff)</h4>
+                            <p className="text-xs text-slate-500 font-medium mt-1">Provision mobile app access for security guards.</p>
+                         </div>
+                         <button className="text-xs font-bold bg-[#007BC4] text-white px-3 py-1.5 rounded shadow-sm hover:bg-[#006aa9] transition">Manage Access</button>
+                      </div>
+                      <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
+                         <div>
+                            <h4 className="font-bold text-slate-800 text-sm">SMS Alerts</h4>
+                            <p className="text-xs text-slate-500 font-medium mt-1">Send priority security notifications via external messaging paths.</p>
+                         </div>
+                         <button className="text-xs font-bold bg-slate-200 text-slate-700 px-3 py-1.5 rounded shadow-sm hover:bg-slate-300 transition">Setup Twilio Api</button>
+                      </div>
+                   </div>
+
+                   <div className="flex justify-between items-center pt-4">
+                      <div>
+                      </div>
+                      <div className="flex gap-3">
+                         <button 
+                            onClick={handleSaveSettings} 
+                            disabled={isSaving}
+                            className="flex items-center gap-2 bg-[#007BC4] hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md transition disabled:opacity-50"
+                         >
+                            {isSaving ? <Save className="w-4 h-4 animate-pulse" /> : <Save className="w-4 h-4" />} 
+                            {isSaving ? 'Saving...' : 'Save Configuration'}
+                         </button>
+                      </div>
+                   </div>
+                </div>
+             )}
 
             {activeSection === 'notifications' && (
                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -792,6 +828,52 @@ export default function SettingsTab() {
                         <Terminal className="w-5 h-5 text-[#007BC4]" /> API Documentation & Developer Console
                      </h3>
                      <p className="text-slate-500 font-medium mt-1">Configure security credentials, browse developer schemas, and execute live sandbox queries against the GAO RFID People Tracking APIs.</p>
+                  </div>
+
+                  {/* Step-by-Step Connection & Architecture Tutorial Card */}
+                  <div className="bg-gradient-to-r from-blue-50 to-sky-50 dark:from-slate-800/40 dark:to-slate-800/80 border border-[#007BC4]/25 rounded-2xl p-6 shadow-sm">
+                     <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-3">
+                        <Sparkles className="w-4.5 h-4.5 text-[#007BC4]" />
+                        How to Connect Your Physical GAO RFID API Router
+                     </h4>
+                     <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+                        Our platform features a built-in highly secure, custom Express backend proxy. Instead of accessing your GAO RFID controller's local IP or domain name from the browser (which triggers browser CORS blockers), <strong>all requests are safely routed through our server-side secure credentials broker</strong>.
+                     </p>
+                     
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                           <div>
+                              <div className="w-6 h-6 rounded-full bg-[#007BC4]/10 text-[#007BC4] font-black flex items-center justify-center text-xs mb-2">1</div>
+                              <span className="font-extrabold text-slate-800 dark:text-slate-200 block mb-1">Set Your API Host</span>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                 Under the Configuration form below, paste your GAO System or controller base service URL.
+                              </p>
+                           </div>
+                           <span className="text-[9px] font-semibold text-slate-400 mt-3 font-mono">e.g., https://192.168.1.100/rfid</span>
+                        </div>
+                        
+                        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                           <div>
+                              <div className="w-6 h-6 rounded-full bg-[#007BC4]/10 text-[#007BC4] font-black flex items-center justify-center text-xs mb-2">2</div>
+                              <span className="font-extrabold text-slate-800 dark:text-slate-200 block mb-1">Select Auth Strategy</span>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                 Choose API Key, Bearer tokens, Basic user-creds, or OAuth client token generators.
+                              </p>
+                           </div>
+                           <span className="text-[9px] font-semibold text-[#007BC4] mt-3 font-mono">Secured Server Proxy</span>
+                        </div>
+                        
+                        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/60 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                           <div>
+                              <div className="w-6 h-6 rounded-full bg-[#007BC4]/10 text-[#007BC4] font-black flex items-center justify-center text-xs mb-2">3</div>
+                              <span className="font-extrabold text-slate-800 dark:text-slate-200 block mb-1">Launch Real Mode</span>
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                 Click Test Connection below, then log in under "Real Connection Mode" to start live mapping sync!
+                              </p>
+                           </div>
+                           <span className="text-[9px] font-bold text-emerald-500 mt-3 flex items-center gap-1">✓ Automated 3s polling active</span>
+                        </div>
+                     </div>
                   </div>
 
                   {/* Dynamic API Configuration Form */}
@@ -1508,45 +1590,7 @@ export default function SettingsTab() {
                 </div>
              )}
 
-             {activeSection === 'integrations' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="mb-4">
-                     <h3 className="text-xl font-bold text-slate-900">Third-party Integrations</h3>
-                     <p className="text-slate-500 font-medium mt-1">Configure Enterprise Integrations and External Handlers.</p>
-                  </div>
-                  
-                  <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100">
-                     <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
-                        <div>
-                           <h4 className="font-bold text-slate-800 text-sm">CCTV Camera Sync</h4>
-                           <p className="text-xs text-slate-500 font-medium mt-1">Link RFID scans to nearest camera feed timestamps.</p>
-                        </div>
-                        <button className="text-xs font-bold bg-[#007BC4] text-white px-3 py-1.5 rounded shadow-sm hover:bg-[#006aa9] transition">Configure</button>
-                     </div>
-                     <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
-                        <div>
-                           <h4 className="font-bold text-slate-800 text-sm">Access Control (Turnstiles)</h4>
-                           <p className="text-xs text-slate-500 font-medium mt-1">Open doors automatically when GAO authorized tags approach.</p>
-                        </div>
-                        <button className="text-xs font-bold bg-[#007BC4] text-white px-3 py-1.5 rounded shadow-sm hover:bg-[#006aa9] transition">Configure</button>
-                     </div>
-                     <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
-                        <div>
-                           <h4 className="font-bold text-slate-800 text-sm">Mobile App (Security Staff)</h4>
-                           <p className="text-xs text-slate-500 font-medium mt-1">Provision mobile app access for security guards.</p>
-                        </div>
-                        <button className="text-xs font-bold bg-[#007BC4] text-white px-3 py-1.5 rounded shadow-sm hover:bg-[#006aa9] transition">Manage Access</button>
-                     </div>
-                     <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
-                        <div>
-                           <h4 className="font-bold text-slate-800 text-sm">WhatsApp / SMS Alerts</h4>
-                           <p className="text-xs text-slate-500 font-medium mt-1">Send priority security notifications via external messaging paths.</p>
-                        </div>
-                        <button className="text-xs font-bold bg-slate-200 text-slate-700 px-3 py-1.5 rounded shadow-sm hover:bg-slate-300 transition">Setup Twilio Api</button>
-                     </div>
-                  </div>
-                </div>
-             )}
+             
 
              {activeSection === 'rules' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
