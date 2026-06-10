@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Search, Plus, X, Save, Clock, MapPin, Activity, Battery, BatteryWarning } from 'lucide-react';
 import { useState } from 'react';
 import { db } from '../lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc } from '../lib/db';
 
 export default function PeopleTab({ people }: { people: Person[] }) {
   const [searchTerm, setSearchTerm] = useState('');

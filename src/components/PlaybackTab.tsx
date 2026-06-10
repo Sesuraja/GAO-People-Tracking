@@ -4,7 +4,7 @@ import { Person, Zone } from '../lib/simulation';
 import { Play, Pause, FastForward, SkipBack, Search, Database } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { useGaoHistory } from '../lib/useGaoApi';
-import { collection, query, orderBy, limit, getDocs, getCountFromServer } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, getCountFromServer } from '../lib/db';
 import { db } from '../lib/firebase';
 
 export default function PlaybackTab({ people, zones }: { people: Person[], zones: any }) {

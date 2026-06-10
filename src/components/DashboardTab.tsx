@@ -32,7 +32,7 @@ import {
 import AIFeed from './AIFeed';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useMemo, ReactNode, useState, useEffect, useContext } from 'react';
-import { collection, onSnapshot, doc, getDoc, setDoc, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc, setDoc, query, orderBy, limit } from '../lib/db';
 import { db, auth } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { AppModeContext } from '../App';

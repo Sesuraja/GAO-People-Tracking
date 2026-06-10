@@ -1,4 +1,4 @@
-import { collection, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, getDoc } from './db';
 import { db } from './firebase';
 import { gaoApi, RealtimeTag } from './gaoApi';
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { gaoApi, RealtimeTag } from './gaoApi';
 import { db, auth } from './firebase';
-import { collection, addDoc, query, orderBy, limit, onSnapshot, doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, limit, onSnapshot, doc, serverTimestamp, getDoc, setDoc } from './db';
 
 enum OperationType {
   CREATE = 'create',

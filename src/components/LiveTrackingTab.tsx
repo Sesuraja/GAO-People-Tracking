@@ -5,7 +5,7 @@ import { useGaoRealtime } from '../lib/useGaoApi';
 // Add Search, AlertTriangle, UserCheck to import
 import { Radio, MapPin, Clock, Search, AlertTriangle, UserCheck } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot } from '../lib/db';
 import { db } from '../lib/firebase';
 
 export default function LiveTrackingTab({ people, zones, highlightedPersonId, isLoading: mainIsLoading }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, isLoading?: boolean }) {

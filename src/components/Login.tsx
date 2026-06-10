@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, auth } from '../lib/firebase';
 import { ShieldAlert, PlayCircle, Loader2 } from 'lucide-react';
 
 interface LoginProps {

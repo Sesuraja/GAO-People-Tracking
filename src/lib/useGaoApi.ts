@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, query, limit, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, limit, orderBy } from './db';
 import { db } from './firebase';
 import { gaoApi, RealtimeTag, HistoryRecord } from './gaoApi';
 

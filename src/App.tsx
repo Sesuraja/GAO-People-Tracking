@@ -28,9 +28,8 @@ import ProfileModal from './components/ProfileModal';
 import ChatBot from './components/ChatBot';
 import Login from './components/Login';
 import { startGaoSync, stopGaoSync } from './lib/gaoSyncService';
-import { auth, db } from './lib/firebase';
-import { signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db, signOut } from './lib/firebase';
+import { doc, getDoc, setDoc } from './lib/db';
 
 import LocationsTab from './components/LocationsTab';
 
@@ -38,8 +37,56 @@ export type AppMode = 'real' | 'demo' | null;
 
 export const AppModeContext = React.createContext<{ mode: AppMode }>({ mode: null });
 
+const ProtectedRoute = ({ 
+  element, 
+  userRole, 
+  permissionKey, 
+  permissions, 
+  featureName 
+}: { 
+  element: React.ReactNode; 
+  userRole: string; 
+  permissionKey: string; 
+  permissions: any; 
+  featureName: string; 
+}) => {
+  const isAllowed = permissions[userRole]?.[permissionKey] ?? true;
+  if (!isAllowed) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center h-full select-none animate-in fade-in zoom-in-95 duration-300">
+        <div className="p-4 bg-rose-50 rounded-full border border-rose-100 mb-4 max-w-sm flex items-center justify-center shadow-sm">
+           <Lock className="w-10 h-10 text-rose-500" />
+        </div>
+        <h3 className="text-xl font-bold text-slate-900 dark:text-white">Security Claims Restriction</h3>
+        <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
+           Your verified Firebase custom claim tier (<strong>{userRole}</strong>) is restricted from viewing the {featureName}.
+         </p>
+         <p className="text-xs text-slate-400 mt-4 font-mono">
+            Ask your administrator to toggle {featureName} visibility in Settings.
+         </p>
+      </div>
+    );
+  }
+  return <>{element}</>;
+};
+
 export default function App() {
   const [mode, setMode] = useState<AppMode>(null);
+
+  useEffect(() => {
+    fetch('/api/mongodb/status')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.connected) {
+          const currentUri = localStorage.getItem('gao_mongodb_uri');
+          if (!currentUri) {
+            localStorage.setItem('gao_mongodb_uri', 'mongodb+srv://sigmundtd_db_user:Jesuraja123%40@cluster0.lxd6qba.mongodb.net/gao_rfid?retryWrites=true&w=majority');
+            window.location.reload();
+          }
+        }
+      })
+      .catch(err => console.warn('Syncing MongoDB state error:', err));
+  }, []);
 
   useEffect(() => {
     if (mode === 'real') {
@@ -76,21 +123,32 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   
   // Custom Claims Role-based visibility and access controls
   const [userRole, setUserRole] = useState<string>('operator');
-  const [permissions, setPermissions] = useState<any>({
-    admin: { dashboard: true, settings: true, tracking: true, playback: true, personnel: true, devices: true },
-    manager: { dashboard: true, settings: false, tracking: true, playback: true, personnel: true, devices: true },
-    operator: { dashboard: false, settings: false, tracking: true, playback: false, personnel: true, devices: false },
-    blocked: { dashboard: false, settings: false, tracking: false, playback: false, personnel: false, devices: false }
-  });
+  const [permissions, setPermissions] = useState<any>({});
 
   const loadClaimsAndPermissions = async () => {
     if (mode === 'demo') {
       setUserRole('admin');
       setPermissions({
-        admin: { dashboard: true, settings: true, tracking: true, playback: true, personnel: true, devices: true },
-        manager: { dashboard: true, settings: false, tracking: true, playback: true, personnel: true, devices: true },
-        operator: { dashboard: false, settings: false, tracking: true, playback: false, personnel: true, devices: false },
-        blocked: { dashboard: false, settings: false, tracking: false, playback: false, personnel: false, devices: false }
+        admin: {
+          dashboard: true, live: true, playback: true, people: true, visitors: true,
+          attendance: true, alerts: true, incidents: true, digitalTwin: true, analytics: true,
+          aiInsights: true, devices: true, maintenance: true, audit: true, settings: true
+        },
+        manager: {
+          dashboard: true, live: true, playback: true, people: true, visitors: true,
+          attendance: true, alerts: true, incidents: true, digitalTwin: true, analytics: true,
+          aiInsights: true, devices: true, maintenance: true, audit: true, settings: false
+        },
+        operator: {
+          dashboard: false, live: true, playback: false, people: true, visitors: true,
+          attendance: true, alerts: true, incidents: true, digitalTwin: true, analytics: false,
+          aiInsights: false, devices: false, maintenance: true, audit: false, settings: false
+        },
+        blocked: {
+          dashboard: false, live: false, playback: false, people: false, visitors: false,
+          attendance: false, alerts: false, incidents: false, digitalTwin: false, analytics: false,
+          aiInsights: false, devices: false, maintenance: false, audit: false, settings: false
+        }
       });
       return;
     }
@@ -254,20 +312,20 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
         <nav className="flex flex-col gap-1 px-3 flex-1 overflow-y-auto min-h-0">
           {(permissions[userRole]?.dashboard ?? true) && <NavItem to="/" icon={<LayoutDashboard size={20}/>} label="Dashboard" />}
-          <NavItem to="/live" icon={<Map size={20}/>} label="Live Tracking" />
+          {(permissions[userRole]?.live ?? true) && <NavItem to="/live" icon={<Map size={20}/>} label="Live Tracking" />}
           {(permissions[userRole]?.playback ?? true) && <NavItem to="/playback" icon={<PlayCircle size={20}/>} label="Playback History" />}
-          <NavItem to="/people" icon={<Users size={20}/>} label="Personnel" />
-          <NavItem to="/visitors" icon={<ClipboardCheck size={20}/>} label="Visitors" />
-          <NavItem to="/attendance" icon={<Clock size={20}/>} label="Attendance" />
-          <NavItem to="/alerts" icon={<Bell size={20}/>} label="Alerts" hasNotification={alerts.some(a => a.type === 'security')} />
-          <NavItem to="/incidents" icon={<ShieldAlert size={20}/>} label="Incidents" />
-          <NavItem to="/digital-twin" icon={<Box size={20}/>} label="Digital Twin" />
-          <NavItem to="/analytics" icon={<BarChart3 size={20}/>} label="Analytics" />
-          <NavItem to="/ai-insights" icon={<Sparkles size={20}/>} label="AI Insights" />
+          {(permissions[userRole]?.people ?? true) && <NavItem to="/people" icon={<Users size={20}/>} label="Personnel" />}
+          {(permissions[userRole]?.visitors ?? true) && <NavItem to="/visitors" icon={<ClipboardCheck size={20}/>} label="Visitors" />}
+          {(permissions[userRole]?.attendance ?? true) && <NavItem to="/attendance" icon={<Clock size={20}/>} label="Attendance" />}
+          {(permissions[userRole]?.alerts ?? true) && <NavItem to="/alerts" icon={<Bell size={20}/>} label="Alerts" hasNotification={alerts.some(a => a.type === 'security')} />}
+          {(permissions[userRole]?.incidents ?? true) && <NavItem to="/incidents" icon={<ShieldAlert size={20}/>} label="Incidents" />}
+          {(permissions[userRole]?.digitalTwin ?? true) && <NavItem to="/digital-twin" icon={<Box size={20}/>} label="Digital Twin" />}
+          {(permissions[userRole]?.analytics ?? true) && <NavItem to="/analytics" icon={<BarChart3 size={20}/>} label="Analytics" />}
+          {(permissions[userRole]?.aiInsights ?? true) && <NavItem to="/ai-insights" icon={<Sparkles size={20}/>} label="AI Insights" />}
           {(permissions[userRole]?.devices ?? true) && <NavItem to="/devices" icon={<Radio size={20}/>} label="Devices" />}
-          <NavItem to="/maintenance" icon={<Wrench size={20}/>} label="Maintenance" />
-          <NavItem to="/audit" icon={<History size={20}/>} label="Audit & Compliance" />
-          <NavItem to="/settings" icon={<Settings size={20}/>} label="Settings" />
+          {(permissions[userRole]?.maintenance ?? true) && <NavItem to="/maintenance" icon={<Wrench size={20}/>} label="Maintenance" />}
+          {(permissions[userRole]?.audit ?? true) && <NavItem to="/audit" icon={<History size={20}/>} label="Audit & Compliance" />}
+          {(permissions[userRole]?.settings ?? true) && <NavItem to="/settings" icon={<Settings size={20}/>} label="Settings" />}
         </nav>
         
         {/* User Profile */}
@@ -307,71 +365,140 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
           <div className="absolute inset-0 flex flex-col">
             <Routes>
               <Route path="/" element={
-                (permissions[userRole]?.dashboard ?? true) ? (
-                  <DashboardTab people={people} alerts={alerts} zones={ZONES} highlightedPersonId={highlightedPersonId} isLoading={isLoading} />
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-6 text-center h-full select-none animate-in fade-in zoom-in-95 duration-300">
-                    <div className="p-4 bg-rose-50 rounded-full border border-rose-100 mb-4 max-w-sm flex items-center justify-center shadow-sm">
-                       <Lock className="w-10 h-10 text-rose-500" />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-900">Security Claims Restriction</h3>
-                    <p className="text-sm font-medium text-slate-500 mt-1 max-w-sm">
-                       Your verified Firebase custom claim tier (<strong>{userRole}</strong>) is restricted from viewing the dashboard telemetry.
-                     </p>
-                     <p className="text-xs text-slate-400 mt-4 font-mono">
-                        Ask your administrator to toggle dashboard visibility in Settings.
-                     </p>
-                  </div>
-                )
+                 <ProtectedRoute 
+                   element={<DashboardTab people={people} alerts={alerts} zones={ZONES} highlightedPersonId={highlightedPersonId} isLoading={isLoading} />}
+                   userRole={userRole}
+                   permissionKey="dashboard"
+                   permissions={permissions}
+                   featureName="Dashboard Telemetry"
+                 />
               } />
-              <Route path="/live" element={<LiveTrackingTab people={people} zones={ZONES} highlightedPersonId={highlightedPersonId} isLoading={isLoading} />} />
+              <Route path="/live" element={
+                 <ProtectedRoute 
+                   element={<LiveTrackingTab people={people} zones={ZONES} highlightedPersonId={highlightedPersonId} isLoading={isLoading} />}
+                   userRole={userRole}
+                   permissionKey="live"
+                   permissions={permissions}
+                   featureName="Live Tracking Feed"
+                 />
+              } />
               <Route path="/playback" element={
-                (permissions[userRole]?.playback ?? true) ? (
-                  <PlaybackTab people={people} zones={ZONES} />
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-6 text-center h-full select-none animate-in fade-in zoom-in-95 duration-300">
-                    <div className="p-4 bg-rose-50 rounded-full border border-rose-100 mb-4 max-w-sm flex items-center justify-center shadow-sm">
-                       <Lock className="w-10 h-10 text-rose-500" />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-900">Security Claims Restriction</h3>
-                    <p className="text-sm font-medium text-slate-500 mt-1 max-w-sm">
-                       Your verified Firebase custom claim tier (<strong>{userRole}</strong>) is restricted from accessing tracking history playback views.
-                     </p>
-                     <p className="text-xs text-slate-400 mt-4 font-mono">
-                        Ask your administrator to toggle playback visibility in Settings.
-                     </p>
-                  </div>
-                )
+                 <ProtectedRoute 
+                   element={<PlaybackTab people={people} zones={ZONES} />}
+                   userRole={userRole}
+                   permissionKey="playback"
+                   permissions={permissions}
+                   featureName="Tracking History Playback"
+                 />
               } />
-              <Route path="/people" element={<PeopleTab people={people} />} />
-              <Route path="/visitors" element={<VisitorsTab />} />
-              <Route path="/attendance" element={<AttendanceTab people={people} />} />
-              <Route path="/alerts" element={<AlertsTab alerts={alerts} />} />
-              <Route path="/incidents" element={<IncidentsTab />} />
-              <Route path="/digital-twin" element={<DigitalTwinTab />} />
-              <Route path="/analytics" element={<AnalyticsTab people={people} isLoading={isLoading} />} />
-              <Route path="/ai-insights" element={<AIInsightsTab people={people} />} />
-              <Route path="/maintenance" element={<MaintenanceTab />} />
+              <Route path="/people" element={
+                 <ProtectedRoute 
+                   element={<PeopleTab people={people} />}
+                   userRole={userRole}
+                   permissionKey="people"
+                   permissions={permissions}
+                   featureName="Personnel Registry"
+                 />
+              } />
+              <Route path="/visitors" element={
+                 <ProtectedRoute 
+                   element={<VisitorsTab />}
+                   userRole={userRole}
+                   permissionKey="visitors"
+                   permissions={permissions}
+                   featureName="Visitor Management"
+                 />
+              } />
+              <Route path="/attendance" element={
+                 <ProtectedRoute 
+                   element={<AttendanceTab people={people} />}
+                   userRole={userRole}
+                   permissionKey="attendance"
+                   permissions={permissions}
+                   featureName="Attendance Insights"
+                 />
+              } />
+              <Route path="/alerts" element={
+                 <ProtectedRoute 
+                   element={<AlertsTab alerts={alerts} />}
+                   userRole={userRole}
+                   permissionKey="alerts"
+                   permissions={permissions}
+                   featureName="Alerts & Trigger Feed"
+                 />
+              } />
+              <Route path="/incidents" element={
+                 <ProtectedRoute 
+                   element={<IncidentsTab />}
+                   userRole={userRole}
+                   permissionKey="incidents"
+                   permissions={permissions}
+                   featureName="Incident Log File"
+                 />
+              } />
+              <Route path="/digital-twin" element={
+                 <ProtectedRoute 
+                   element={<DigitalTwinTab />}
+                   userRole={userRole}
+                   permissionKey="digitalTwin"
+                   permissions={permissions}
+                   featureName="3D Digital Twin spatial simulation"
+                 />
+              } />
+              <Route path="/analytics" element={
+                 <ProtectedRoute 
+                   element={<AnalyticsTab people={people} isLoading={isLoading} />}
+                   userRole={userRole}
+                   permissionKey="analytics"
+                   permissions={permissions}
+                   featureName="Aggregated Traffic Analytics"
+                 />
+              } />
+              <Route path="/ai-insights" element={
+                 <ProtectedRoute 
+                   element={<AIInsightsTab people={people} />}
+                   userRole={userRole}
+                   permissionKey="aiInsights"
+                   permissions={permissions}
+                   featureName="AI Insights and Predictions Reports"
+                 />
+              } />
               <Route path="/devices" element={
-                (permissions[userRole]?.devices ?? true) ? (
-                  <DevicesTab />
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-6 text-center h-full select-none animate-in fade-in zoom-in-95 duration-300">
-                    <div className="p-4 bg-rose-50 rounded-full border border-rose-100 mb-4 max-w-sm flex items-center justify-center shadow-sm">
-                       <Lock className="w-10 h-10 text-rose-500" />
-                    </div>
-                    <h3 className="text-xl font-bold text-slate-900">Security Claims Restriction</h3>
-                    <p className="text-sm font-medium text-slate-500 mt-1 max-w-sm">
-                       Your verified Firebase custom claim tier (<strong>{userRole}</strong>) is restricted from opening the hardware devices panel.
-                     </p>
-                     <p className="text-xs text-slate-400 mt-4 font-mono">
-                        Ask your administrator to toggle devices panel access in Settings.
-                     </p>
-                  </div>
-                )
+                 <ProtectedRoute 
+                   element={<DevicesTab />}
+                   userRole={userRole}
+                   permissionKey="devices"
+                   permissions={permissions}
+                   featureName="Hardware Devices Administration"
+                 />
               } />
-              <Route path="/settings" element={<SettingsTab />} />
-              <Route path="/audit" element={<AuditTab />} />
+              <Route path="/maintenance" element={
+                 <ProtectedRoute 
+                   element={<MaintenanceTab />}
+                   userRole={userRole}
+                   permissionKey="maintenance"
+                   permissions={permissions}
+                   featureName="Hardware Maintenance Schedule"
+                 />
+              } />
+              <Route path="/settings" element={
+                 <ProtectedRoute 
+                   element={<SettingsTab />}
+                   userRole={userRole}
+                   permissionKey="settings"
+                   permissions={permissions}
+                   featureName="Global Settings Console"
+                 />
+              } />
+              <Route path="/audit" element={
+                 <ProtectedRoute 
+                   element={<AuditTab />}
+                   userRole={userRole}
+                   permissionKey="audit"
+                   permissions={permissions}
+                   featureName="Compliance and Audit Ledger"
+                 />
+              } />
             </Routes>
           </div>
         </div>

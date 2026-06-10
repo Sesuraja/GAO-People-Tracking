@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserPlus, QrCode, ClipboardCheck, ArrowRight, Clock, MapPin, Search, X, Calendar, User, Mail, Building, Briefcase } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { collection, onSnapshot, doc, setDoc, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, getDocs } from '../lib/db';
 import { db } from '../lib/firebase';
 import QRCode from 'react-qr-code';
 

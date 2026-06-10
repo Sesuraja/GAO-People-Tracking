@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Radio, Wifi, WifiOff, AlertCircle, RefreshCw, MoreVertical, Plus, X, Save, MapPin } from 'lucide-react';
-import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc } from '../lib/db';
 import { db } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 

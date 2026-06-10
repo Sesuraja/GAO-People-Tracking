@@ -4,8 +4,8 @@ import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
 import 'dotenv/config';
 import { GoogleGenAI, Type } from '@google/genai';
-import admin from 'firebase-admin';
 import fs from 'fs';
+import { MongoClient, Db } from 'mongodb';
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -14,35 +14,56 @@ const ai = new GoogleGenAI({
   }
 });
 
-let firebaseConfig: any = {};
-try {
-  const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-  if (fs.existsSync(configPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+// Configure MongoDB client
+const MONGODB_CONFIG_FILE = path.resolve(process.cwd(), 'mongodb-config.json');
+let mongoClient: MongoClient | null = null;
+let mongoDb: Db | null = null;
+let activeMongoUri = '';
+
+async function initMongo(uri: string): Promise<boolean> {
+  if (!uri) return false;
+  try {
+    if (mongoClient && activeMongoUri === uri) {
+      return true;
+    }
+    if (mongoClient) {
+      try { await mongoClient.close(); } catch {}
+    }
+    console.log('Connecting to MongoDB...');
+    const client = new MongoClient(uri);
+    await client.connect();
+    mongoClient = client;
+    
+    // Parse database name from connection string or default
+    const urlParts = uri.split('/');
+    const lastPart = urlParts[urlParts.length - 1];
+    const dbName = lastPart.split('?')[0] || 'gao_rfid';
+    
+    mongoDb = client.db(dbName);
+    activeMongoUri = uri;
+    console.log(`Connected successfully to MongoDB database: ${dbName}`);
+    return true;
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    return false;
   }
-} catch (err) {
-  console.error('Failed to read firebase-applet-config.json in backend:', err);
 }
 
-let adminApp: admin.app.App | null = null;
-let dbAdmin: admin.firestore.Firestore | null = null;
-
+// Read saved MongoDB URI if any
+let initialMongoUri = process.env.MONGODB_URI || '';
 try {
-  if (firebaseConfig.projectId) {
-    adminApp = admin.initializeApp({
-      projectId: firebaseConfig.projectId
-    });
-    dbAdmin = admin.firestore();
-    if (firebaseConfig.firestoreDatabaseId) {
-      dbAdmin.settings({
-        databaseId: firebaseConfig.firestoreDatabaseId,
-        ignoreUndefinedProperties: true
-      });
+  if (fs.existsSync(MONGODB_CONFIG_FILE)) {
+    const saved = JSON.parse(fs.readFileSync(MONGODB_CONFIG_FILE, 'utf8'));
+    if (saved.mongodbUri) {
+      initialMongoUri = saved.mongodbUri;
     }
-    console.log('Firebase Admin initialized successfully in server.');
   }
-} catch (err: any) {
-  console.error('Firebase Admin initialization error, continuing with in-memory fallback:', err);
+} catch (err) {
+  console.error('Failed to read saved MongoDB configuration:', err);
+}
+
+if (initialMongoUri) {
+  initMongo(initialMongoUri).catch(err => console.error('Initial MongoDB activation failed:', err));
 }
 
 async function startServer() {
@@ -51,6 +72,136 @@ async function startServer() {
 
   app.use(cors());
   app.use(express.json());
+
+  // MongoDB routes and CRUD endpoints
+  app.post('/api/mongodb/config', async (req, res) => {
+    try {
+      const { mongodbUri } = req.body;
+      if (!mongodbUri) {
+        return res.status(400).json({ error: 'Connection string is empty' });
+      }
+      const success = await initMongo(mongodbUri);
+      if (success) {
+        try {
+          fs.writeFileSync(MONGODB_CONFIG_FILE, JSON.stringify({ mongodbUri }, null, 2), 'utf8');
+        } catch (fsErr) {
+          console.error('Failed to write mongodb-config.json:', fsErr);
+        }
+        res.json({ success: true, message: 'Connected to MongoDB successfully!' });
+      } else {
+        res.status(400).json({ error: 'Connection failed. Please check your connection string, credentials, and network restrictions.' });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/mongodb/status', (req, res) => {
+    res.json({
+      connected: !!mongoDb,
+      connectionString: activeMongoUri ? `${activeMongoUri.substring(0, 20)}...` : '',
+    });
+  });
+
+  app.post('/api/mongodb/test-connection', async (req, res) => {
+    try {
+      const { mongodbUri } = req.body;
+      if (!mongodbUri) {
+        return res.json({ success: false, error: 'Connection string is empty' });
+      }
+      const tempClient = new MongoClient(mongodbUri);
+      await tempClient.connect();
+      await tempClient.db().admin().ping();
+      await tempClient.close();
+      res.json({ success: true });
+    } catch (err: any) {
+      res.json({ success: false, error: err.message });
+    }
+  });
+
+  // Get all items in a collection
+  app.get('/api/mongodb/:collection', async (req, res) => {
+    try {
+      const colName = req.params.collection;
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
+      }
+      const docs = await mongoDb.collection(colName).find({}).toArray();
+      res.json({ data: docs });
+    } catch (err: any) {
+      console.error(`MongoDB GET /${req.params.collection} error:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Get a single item by id
+  app.get('/api/mongodb/:collection/:id', async (req, res) => {
+    try {
+      const { collection: colName, id } = req.params;
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
+      }
+      const doc = await mongoDb.collection(colName).findOne({ id: id });
+      res.json({ doc });
+    } catch (err: any) {
+      console.error(`MongoDB GET /${req.params.collection}/${req.params.id} error:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Add an item (generates a random ID)
+  app.post('/api/mongodb/:collection', async (req, res) => {
+    try {
+      const colName = req.params.collection;
+      const data = req.body;
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
+      }
+      const randomId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const docData = { ...data, id: randomId, createdAt: new Date().toISOString() };
+      await mongoDb.collection(colName).insertOne(docData);
+      res.json({ success: true, doc: docData });
+    } catch (err: any) {
+      console.error(`MongoDB POST /${req.params.collection} error:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Upsert or set doc by exact ID
+  app.post('/api/mongodb/:collection/:id', async (req, res) => {
+    try {
+      const { collection: colName, id } = req.params;
+      const data = req.body;
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
+      }
+      const updateData = { ...data, id, updatedAt: new Date().toISOString() };
+      await mongoDb.collection(colName).updateOne(
+        { id: id },
+        { $set: updateData },
+        { upsert: true }
+      );
+      res.json({ success: true, doc: updateData });
+    } catch (err: any) {
+      console.error(`MongoDB POST /${req.params.collection}/${req.params.id} error:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Delete an item by ID
+  app.delete('/api/mongodb/:collection/:id', async (req, res) => {
+    try {
+      const { collection: colName, id } = req.params;
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
+      }
+      const result = await mongoDb.collection(colName).deleteOne({ id: id });
+      res.json({ success: result.deletedCount > 0 });
+    } catch (err: any) {
+      console.error(`MongoDB DELETE /${req.params.collection}/${req.params.id} error:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   // AI Activity Analysis endpoint
   app.post('/api/analyze-activity', async (req, res) => {
@@ -187,6 +338,106 @@ async function startServer() {
     }
   });
 
+  // --- MONGODB AUTH ENDPOINTS ---
+  app.post('/api/auth/register', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+      }
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB is not connected.' });
+      }
+      
+      const cleanEmail = email.toLowerCase();
+      // Check if user already exists
+      const existing = await mongoDb.collection('settings').findOne({ 
+        $or: [
+          { email: cleanEmail },
+          { id: `user_role_${cleanEmail}` }
+        ]
+      });
+      if (existing) {
+        return res.status(400).json({ error: 'An account with this email already exists' });
+      }
+      
+      const uid = 'u_' + Math.random().toString(36).substring(2, 11);
+      // Determine role
+      let role = 'operator';
+      if (cleanEmail === 'sigmund.t.d@gaostaff.com') {
+        role = 'admin';
+      }
+      
+      const userData = {
+        id: `user_role_${uid}`,
+        uid,
+        email: cleanEmail,
+        password, // simply stored inside MongoDB
+        displayName: email.split('@')[0],
+        role,
+        updatedAt: new Date().toISOString()
+      };
+      
+      await mongoDb.collection('settings').insertOne(userData);
+      res.json({ success: true, user: { uid, email: cleanEmail, displayName: userData.displayName, role } });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+      }
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
+      }
+      const cleanEmail = email.toLowerCase();
+      let userDoc: any = await mongoDb.collection('settings').findOne({ email: cleanEmail });
+      
+      // Bootstrap default superadmin if trying to login and it doesn't exist yet
+      if (!userDoc && cleanEmail === 'sigmund.t.d@gaostaff.com') {
+        const uid = 'sigmund_ts_boot';
+        userDoc = {
+          id: `user_role_${uid}`,
+          uid,
+          email: cleanEmail,
+          password: password || 'Jesuraja123@',
+          displayName: 'sigmund.t.d',
+          role: 'admin',
+          updatedAt: new Date().toISOString()
+        };
+        await mongoDb.collection('settings').insertOne(userDoc);
+      }
+      
+      if (!userDoc) {
+        return res.status(401).json({ error: 'Authentication failed. Email not found.' });
+      }
+      
+      if (userDoc.password !== password) {
+        return res.status(401).json({ error: 'Authentication failed. Password does not match.' });
+      }
+      
+      res.json({ 
+        success: true, 
+        user: { 
+          uid: userDoc.uid || userDoc.id, 
+          email: userDoc.email, 
+          displayName: userDoc.displayName, 
+          role: userDoc.role 
+        } 
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    res.json({ success: true });
+  });
+
   // ADMIN: Register standard users and bootstrap 'sigmund.t.d@gaostaff.com' as Admin
   app.post('/api/admin/register', async (req, res) => {
     try {
@@ -194,32 +445,23 @@ async function startServer() {
       if (!uid || !email) {
         return res.status(400).json({ error: 'Missing uid or email' });
       }
-
-      const userRoleDocPath = `settings/user_role_${uid}`;
-      let existingRole: string | null = null;
-      let userData: any = null;
-
-      if (dbAdmin) {
-        try {
-          const docRef = dbAdmin.doc(userRoleDocPath);
-          const docSnap = await docRef.get();
-          if (docSnap.exists) {
-            userData = docSnap.data();
-            existingRole = userData?.role;
-          }
-        } catch (dbErr: any) {
-          console.warn('Note: DB Admin fetch role failed inside register, using client fallback:', dbErr.message || dbErr);
-        }
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
       }
 
-      // Check if user is the bootstrapped admin
-      const bootstrappedAdmin = 'sigmund.t.d@gaostaff.com';
-      let role = existingRole || 'operator';
-      if (!existingRole && email.toLowerCase() === bootstrappedAdmin.toLowerCase()) {
+      const userRoleDocPath = `user_role_${uid}`;
+      let role = 'operator';
+      if (email.toLowerCase() === 'sigmund.t.d@gaostaff.com') {
         role = 'admin';
       }
 
+      const existingDoc = await mongoDb.collection('settings').findOne({ id: userRoleDocPath });
+      if (existingDoc && existingDoc.role) {
+        role = existingDoc.role;
+      }
+
       const updatedData = {
+        id: userRoleDocPath,
         uid,
         email,
         displayName: displayName || email.split('@')[0],
@@ -227,23 +469,11 @@ async function startServer() {
         updatedAt: new Date().toISOString()
       };
 
-      if (dbAdmin) {
-        try {
-          await dbAdmin.doc(userRoleDocPath).set(updatedData, { merge: true });
-        } catch (dbErr: any) {
-          console.warn('Note: DB Admin save user profile failed inside register, using client fallback:', dbErr.message || dbErr);
-        }
-      }
-
-      // Set custom claims
-      if (adminApp) {
-        try {
-          await admin.auth().setCustomUserClaims(uid, { role });
-          console.log(`Successfully configured custom claim role=${role} for ${uid}`);
-        } catch (claimsErr: any) {
-          console.warn('Note: Admin auth config custom claim failed inside register, using local fallback:', claimsErr.message || claimsErr);
-        }
-      }
+      await mongoDb.collection('settings').updateOne(
+        { id: userRoleDocPath },
+        { $set: updatedData },
+        { upsert: true }
+      );
 
       res.json({ success: true, role, userData: updatedData });
     } catch (e: any) {
@@ -265,46 +495,32 @@ async function startServer() {
         return res.status(400).json({ error: 'Invalid custom claims role' });
       }
 
-      if (!adminApp) {
-        return res.status(500).json({ error: 'Firebase Administration App is not initialized' });
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
       }
 
-      // 1. Create the user credential in Firebase Auth
-      const userRecord = await admin.auth().createUser({
-        email,
-        password,
-        displayName: displayName || email.split('@')[0]
-      });
-
-      const uid = userRecord.uid;
-
-      // 2. Assign dynamic custom role claim immediately
-      await admin.auth().setCustomUserClaims(uid, { role });
-      console.log(`Successfully provisioned claims role=${role} for user=${uid}`);
-
-      // 3. Persist the metadata profile document inside Firestore settings database
-      const userRoleDocPath = `settings/user_role_${uid}`;
+      const uid = 'u_' + Math.random().toString(36).substring(2, 11);
+      const userRoleDocPath = `user_role_${uid}`;
       const userData = {
+        id: userRoleDocPath,
         uid,
         email,
+        password,
         displayName: displayName || email.split('@')[0],
         role,
         updatedAt: new Date().toISOString()
       };
 
-      if (dbAdmin) {
-        await dbAdmin.doc(userRoleDocPath).set(userData, { merge: true });
-        console.log(`Persisted Firestore metadata configuration settings for new user ${uid}`);
-      }
+      await mongoDb.collection('settings').updateOne(
+        { id: userRoleDocPath },
+        { $set: userData },
+        { upsert: true }
+      );
 
       res.json({ success: true, user: userData });
     } catch (e: any) {
       console.error('Manual user creation API error:', e);
-      let errMsg = e.message || 'Failed to create user account';
-      if (errMsg.includes('identitytoolkit.googleapis.com') || errMsg.includes('Identity Toolkit') || errMsg.includes('auth/internal-error')) {
-        errMsg = 'The Google Identity Toolkit API is not fully activated or is disabled on this GCP project. To resolve this, you must run Firebase Setup via your workspace or enable Identity Toolkit in the GCP API Console. Alternative: Users can sign in (or register) directly via the client application, after which they will appear in the "Registered Accounts" roster below and you can elevate them to Manager, Operator or Admin instantly!';
-      }
-      res.status(500).json({ error: errMsg });
+      res.status(500).json({ error: e.message });
     }
   });
 
@@ -312,24 +528,17 @@ async function startServer() {
   app.get('/api/admin/users', async (req, res) => {
     try {
       let users: any[] = [];
-      if (dbAdmin) {
-        try {
-          const settingsColl = dbAdmin.collection('settings');
-          const snapshot = await settingsColl.get();
-          snapshot.forEach(doc => {
-            if (doc.id.startsWith('user_role_')) {
-              users.push(doc.data());
-            }
-          });
-        } catch (dbErr: any) {
-          console.warn('Note: DB Admin get users list failed:', dbErr.message || dbErr);
-        }
+      if (mongoDb) {
+        const settingsColl = mongoDb.collection('settings');
+        const list = await settingsColl.find({ id: { $regex: '^user_role_' } }).toArray();
+        users = list;
       }
 
       // Safeguard: always have a bootstrapped operator at least, or return what's available
       if (users.length === 0) {
         users = [
           {
+            id: 'user_role_sigmund_ts_boot',
             uid: 'sigmund_ts_boot',
             email: 'sigmund.t.d@gaostaff.com',
             displayName: 'sigmund.t.d',
@@ -359,26 +568,16 @@ async function startServer() {
         return res.status(400).json({ error: 'Invalid role' });
       }
 
-      const userRoleDocPath = `settings/user_role_${uid}`;
-      if (dbAdmin) {
-        try {
-          await dbAdmin.doc(userRoleDocPath).set({
-            role,
-            updatedAt: new Date().toISOString()
-          }, { merge: true });
-        } catch (dbErr: any) {
-          console.warn('Note: DB Admin change user role state failed (using client settings fallback):', dbErr.message || dbErr);
-        }
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
       }
 
-      if (adminApp) {
-        try {
-          await admin.auth().setCustomUserClaims(uid, { role });
-          console.log(`Successfully completed firebase custom claims modification for user ${uid} to role ${role}`);
-        } catch (claimsErr: any) {
-          console.warn('Note: Admin auth custom user claims change failed, relying on client setting fallback:', claimsErr.message || claimsErr);
-        }
-      }
+      const userRoleDocPath = `user_role_${uid}`;
+      await mongoDb.collection('settings').updateOne(
+        { id: userRoleDocPath },
+        { $set: { role, updatedAt: new Date().toISOString() } },
+        { upsert: true }
+      );
 
       res.json({ success: true, uid, role });
     } catch (e: any) {
@@ -387,27 +586,74 @@ async function startServer() {
     }
   });
 
+  // ADMIN: Delete a registered user account
+  app.delete('/api/admin/users/:uid', async (req, res) => {
+    try {
+      const { uid } = req.params;
+      if (!uid) {
+        return res.status(400).json({ error: 'Missing user uid' });
+      }
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
+      }
+
+      // Safeguard: Do not allow deletion of the primary admin user ID
+      if (uid === 'sigmund_ts_boot') {
+        return res.status(403).json({ error: 'Cannot delete the system root admin account.' });
+      }
+
+      const userRoleDocPath = `user_role_${uid}`;
+      const result = await mongoDb.collection('settings').deleteOne({ id: userRoleDocPath });
+      
+      // If of generic form or found by uid directly
+      if (result.deletedCount === 0) {
+        await mongoDb.collection('settings').deleteOne({ uid });
+      }
+
+      res.json({ success: true, message: `Successfully deleted user ${uid} from database settings` });
+    } catch (e: any) {
+      console.error('Admin delete user API Error:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // ADMIN: Get/Load specific role permissions configuration
   app.get('/api/admin/permissions', async (req, res) => {
     try {
-      const docPath = 'settings/role_permissions';
       let permissions = {
-        admin: { dashboard: true, settings: true, tracking: true, playback: true, personnel: true, devices: true },
-        manager: { dashboard: true, settings: false, tracking: true, playback: true, personnel: true, devices: true },
-        operator: { dashboard: false, settings: false, tracking: true, playback: false, personnel: true, devices: false },
-        blocked: { dashboard: false, settings: false, tracking: false, playback: false, personnel: false, devices: false }
+        admin: {
+          dashboard: true, live: true, playback: true, people: true, visitors: true,
+          attendance: true, alerts: true, incidents: true, digitalTwin: true, analytics: true,
+          aiInsights: true, devices: true, maintenance: true, audit: true, settings: true
+        },
+        manager: {
+          dashboard: true, live: true, playback: true, people: true, visitors: true,
+          attendance: true, alerts: true, incidents: true, digitalTwin: true, analytics: true,
+          aiInsights: true, devices: true, maintenance: true, audit: true, settings: false
+        },
+        operator: {
+          dashboard: false, live: true, playback: false, people: true, visitors: true,
+          attendance: true, alerts: true, incidents: true, digitalTwin: true, analytics: false,
+          aiInsights: false, devices: false, maintenance: true, audit: false, settings: false
+        },
+        blocked: {
+          dashboard: false, live: false, playback: false, people: false, visitors: false,
+          attendance: false, alerts: false, incidents: false, digitalTwin: false, analytics: false,
+          aiInsights: false, devices: false, maintenance: false, audit: false, settings: false
+        }
       };
 
-      if (dbAdmin) {
-        try {
-          const snap = await dbAdmin.doc(docPath).get();
-          if (snap.exists) {
-            permissions = { ...permissions, ...snap.data() };
-          } else {
-            await dbAdmin.doc(docPath).set(permissions);
-          }
-        } catch (dbErr: any) {
-          console.warn('Note: DB Admin load permissions configuration failed, using local JSON permissions fallback:', dbErr.message || dbErr);
+      if (mongoDb) {
+        const snap = await mongoDb.collection('settings').findOne({ id: 'role_permissions' });
+        if (snap) {
+          const { _id, id, ...cleanPermissions } = snap;
+          permissions = { ...permissions, ...cleanPermissions };
+        } else {
+          await mongoDb.collection('settings').updateOne(
+            { id: 'role_permissions' },
+            { $set: { id: 'role_permissions', ...permissions } },
+            { upsert: true }
+          );
         }
       }
       res.json(permissions);
@@ -416,18 +662,18 @@ async function startServer() {
     }
   });
 
-  // ADMINUpdate/modify role permissions
+  // ADMIN: Update/modify role permissions
   app.post('/api/admin/permissions', async (req, res) => {
     try {
       const permissions = req.body;
-      const docPath = 'settings/role_permissions';
-      if (dbAdmin) {
-        try {
-          await dbAdmin.doc(docPath).set(permissions);
-        } catch (dbErr: any) {
-          console.warn('Note: DB Admin update permissions list failed:', dbErr.message || dbErr);
-        }
+      if (!mongoDb) {
+        return res.status(503).json({ error: 'MongoDB database is not connected.' });
       }
+      await mongoDb.collection('settings').updateOne(
+        { id: 'role_permissions' },
+        { $set: { id: 'role_permissions', ...permissions } },
+        { upsert: true }
+      );
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });

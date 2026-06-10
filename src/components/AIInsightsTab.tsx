@@ -31,7 +31,7 @@ import {
   deleteDoc, 
   doc, 
   serverTimestamp 
-} from 'firebase/firestore';
+} from '../lib/db';
 import { db } from '../lib/firebase';
 
 interface AIInsightsTabProps {
