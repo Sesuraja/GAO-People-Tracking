@@ -116,6 +116,8 @@ export function useSimulation(mode: 'real' | 'demo' | null) {
 const [dynamicZones, setDynamicZones] = useState<Record<string, { x: number; y: number; width: number; height: number }>>(ZONES);
 
   useEffect(() => {
+    if (!mode) return;
+
     // Listen to settings changes globally
     const settingsRef = doc(db, 'settings', 'global');
     const unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
@@ -179,7 +181,7 @@ const [dynamicZones, setDynamicZones] = useState<Record<string, { x: number; y: 
        unsubscribeFloorplans();
        unsubscribeRegistered();
     };
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (!mode) return;

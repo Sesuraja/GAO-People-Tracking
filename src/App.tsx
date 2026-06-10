@@ -70,7 +70,16 @@ const ProtectedRoute = ({
 };
 
 export default function App() {
-  const [mode, setMode] = useState<AppMode>(null);
+  const [mode, setMode] = useState<AppMode>(() => localStorage.getItem('gao_app_mode') as AppMode || null);
+
+  const changeMode = (newMode: AppMode) => {
+    setMode(newMode);
+    if (newMode) {
+      localStorage.setItem('gao_app_mode', newMode);
+    } else {
+      localStorage.removeItem('gao_app_mode');
+    }
+  };
 
   useEffect(() => {
     fetch('/api/mongodb/status')
@@ -96,7 +105,7 @@ export default function App() {
   }, [mode]);
 
   if (!mode) {
-    return <Login onLoginSuccess={setMode} />;
+    return <Login onLoginSuccess={changeMode} />;
   }
 
   return (
@@ -106,7 +115,7 @@ export default function App() {
             if (mode === 'real') {
                 signOut(auth).catch(console.error);
             }
-            setMode(null);
+            changeMode(null);
         }} />
       </BrowserRouter>
     </AppModeContext.Provider>

@@ -151,20 +151,80 @@ export default function AIInsightsTab({ people = [] }: AIInsightsTabProps) {
         };
       });
 
-      const response = await fetch('/api/analyze-rfid-results', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          liveTags: enrichedLiveTags,
-          historyRecords: enrichedHistory
-        })
-      });
+      let result;
+      const isDemo = localStorage.getItem('gao_app_mode') === 'demo';
 
-      if (!response.ok) {
-        throw new Error(`Server returned code ${response.status}`);
+      if (isDemo) {
+        // Return beautiful offline simulated report
+        result = {
+          executiveSummary: "UHF personnel scans are fully simulated on GAO Building A's first floor. Dynamic telemetry has flagged loitering behavior in the Server Room and general zone crowding at peak lunchtime intervals. System operates under safe security and loitering claim rules.",
+          anomalies: [
+            {
+              tagId: "2",
+              name: "Bob Johnson",
+              zone: "Server Room",
+              severity: "HIGH",
+              title: "Escort Lockout Breach",
+              description: "Bob Johnson (Visitor) was detected inside the Secure Server Room without active personnel escorting. Dwell loitering crossed safe 2-minute limits."
+            },
+            {
+              tagId: "1",
+              name: "Alice Smith",
+              zone: "Meeting Room",
+              severity: "MEDIUM",
+              title: "Stationary Idle Threshold",
+              description: "Alice Smith has been stationary for over an hour. This deviates from standard office mobility benchmarks."
+            }
+          ],
+          optimizations: [
+            {
+              category: "Operations",
+              title: "Optimize Security Patrol Route",
+              impact: "HIGH",
+              description: "Move patrol guards near Room 102 during afternoon shift rotations to reduce visitor loitering risks.",
+              actionableSteps: "1. Update security dispatch schedules.\n2. Reallocate physical checkpoints."
+            },
+            {
+              category: "Energy",
+              title: "HVAC Zone Scheduling",
+              impact: "MEDIUM",
+              description: "Shut down climate controls in Meeting Room when unoccupied based on real-time scan histories.",
+              actionableSteps: "1. Connect smart thermostat relay with GAO API.\n2. Apply unoccupied standby offsets."
+            }
+          ],
+          personnelEfficiency: [
+            {
+              tagId: "1",
+              name: "Alice Smith",
+              inferredActivity: "Sustained Focused Work",
+              efficiencyScore: 92,
+              dwellTimeInfo: "Dwell 154m (90% at office desk)"
+            },
+            {
+              tagId: "3",
+              name: "Charlie Davis",
+              inferredActivity: "Patrol and Escort Duties",
+              efficiencyScore: 88,
+              dwellTimeInfo: "Dwell 45m in zones, 120m in transit"
+            }
+          ]
+        };
+      } else {
+        const response = await fetch('/api/analyze-rfid-results', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            liveTags: enrichedLiveTags,
+            historyRecords: enrichedHistory
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server returned code ${response.status}`);
+        }
+
+        result = await response.json();
       }
-
-      const result = await response.json();
       setReport(result);
     } catch (e: any) {
       console.error("AI Reader diagnostic failed:", e);

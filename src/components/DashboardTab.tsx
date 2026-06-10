@@ -27,11 +27,14 @@ import {
   ArrowRight,
   Key,
   ExternalLink,
-  Trash2
+  Trash2,
+  GripVertical
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import AIFeed from './AIFeed';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useMemo, ReactNode, useState, useEffect, useContext } from 'react';
+import React from 'react';
 import { collection, onSnapshot, doc, getDoc, setDoc, query, orderBy, limit } from '../lib/db';
 import { db, auth } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
@@ -66,13 +69,13 @@ const DEFAULT_KPIS: KPIConfig[] = [
 ];
 
 const DEFAULT_PANELS: PanelConfig[] = [
-  { id: 'occupancy_panel', title: 'Occupancy & Status', description: 'Device health, live zone distribution tracker, and recent movement activity logs.', visible: true, order: 1, width: '2/3' },
-  { id: 'alerts_panel', title: 'Recent Alerts', description: 'Live alerts, security threats, sensor events feed with custom action routing.', visible: true, order: 2, width: '1/3' },
+  { id: 'occupancy_panel', title: 'Zone Occupancy & Floor Status', description: 'Device health, live zone distribution tracker, and recent movement activity logs.', visible: true, order: 1, width: '2/3' },
+  { id: 'alerts_panel', title: 'Active Alarms Tracker', description: 'Live alerts, security threats, sensor events feed with custom action routing.', visible: true, order: 2, width: '1/3' },
   { id: 'attendance_summary', title: 'Attendance Module', description: 'First entry, last exit, and working hours summary.', visible: true, order: 3, width: '1/3' },
   { id: 'ai_insights', title: 'AI Prediction & Insights', description: 'AI generated summaries, anomaly detection, predictive overcrowding alerts.', visible: true, order: 4, width: '2/3' },
   { id: 'chart_over_time', title: 'Crowd Flow Trend', description: 'Over-time area trend of RFID tag occurrences showing busiest site intervals.', visible: true, order: 5, width: '1/4' },
   { id: 'chart_top_zones', title: 'Zone breakdown', description: 'Interactive pie chart showing crowd proportion distribution by active zones.', visible: true, order: 6, width: '1/4' },
-  { id: 'chart_device_status', title: 'Hardware Health', description: 'Visual breakdown of RFID readers, door systems online or requiring warning.', visible: true, order: 7, width: '1/4' },
+  { id: 'chart_device_status', title: 'System Load & Readers', description: 'Visual breakdown of RFID readers, door systems online or requiring warning, plus CPU load analytics.', visible: true, order: 7, width: '1/4' },
   { id: 'chart_heatmap', title: 'Flow Heatmap', description: 'Live heatmap representation showing density hotspots within physical boundaries.', visible: true, order: 8, width: '1/4' },
   { id: 'tech_footer', title: 'Technology Features', description: 'Core system specs overview of active RFID frequency bands & security protocols.', visible: true, order: 9, width: 'full' }
 ];
@@ -125,6 +128,61 @@ export default function DashboardTab({
   // Temporary layout configurations for draft editing
   const [tempKpis, setTempKpis] = useState<KPIConfig[]>([]);
   const [tempPanels, setTempPanels] = useState<PanelConfig[]>([]);
+
+  // Drag and drop sorting states
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIdx === null || draggedIdx === index) return;
+    setDragOverIdx(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number, type: 'kpi' | 'panel') => {
+    e.preventDefault();
+    if (draggedIdx === null || draggedIdx === targetIndex) return;
+
+    if (type === 'kpi') {
+      setTempKpis(prev => {
+        const active = prev.filter(k => !k.deleted).sort((a,b) => a.order - b.order);
+        const deleted = prev.filter(k => k.deleted);
+        
+        const result = [...active];
+        const [removed] = result.splice(draggedIdx, 1);
+        result.splice(targetIndex, 0, removed);
+        
+        const reordered = result.map((item, idx) => ({ ...item, order: idx + 1 }));
+        return [...reordered, ...deleted];
+      });
+    } else {
+      setTempPanels(prev => {
+        const active = prev.filter(p => !p.deleted).sort((a,b) => a.order - b.order);
+        const deleted = prev.filter(p => p.deleted);
+        
+        const result = [...active];
+        const [removed] = result.splice(draggedIdx, 1);
+        result.splice(targetIndex, 0, removed);
+        
+        const reordered = result.map((item, idx) => ({ ...item, order: idx + 1 }));
+        return [...reordered, ...deleted];
+      });
+    }
+    
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+  };
 
   // Load and subscribe to Device & Floorplans info
   useEffect(() => {
@@ -732,45 +790,89 @@ export default function DashboardTab({
 
       case 'chart_device_status':
         return (
-          <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col shadow-sm transition hover:shadow-md h-[300px]">
-            <h3 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider mb-2 shrink-0">Device Status Shares</h3>
-            <div className="flex-1 flex items-center justify-center relative min-h-0">
-               <ResponsiveContainer width={120} height={120}>
-                 <PieChart>
-                   <Pie
-                     data={deviceData}
-                     innerRadius="75%"
-                     outerRadius="90%"
-                     paddingAngle={0}
-                     dataKey="value"
-                     stroke="none"
-                     startAngle={90}
-                     endAngle={-270}
-                   >
-                     {deviceData.map((entry, index) => (
-                       <Cell key={`cell-${index}`} fill={entry.color} />
-                     ))}
-                   </Pie>
-                 </PieChart>
-               </ResponsiveContainer>
-               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                 <span className="text-xl font-extrabold text-slate-900">
-                   {mode === 'real' ? deviceList.length : 32}
-                 </span>
-                 <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Readers</span>
-               </div>
-               
-               <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col gap-2">
-                 {deviceData.map(d => (
-                   <div key={d.name} className="flex flex-col leading-none">
-                      <span className="text-sm font-extrabold flex items-center gap-1 text-slate-800">
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: d.color }}></span>
-                        {d.value}
-                      </span>
-                      <span className="text-[8px] uppercase tracking-wider font-bold text-slate-400 ml-3">{d.name}</span>
-                   </div>
-                 ))}
-               </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col shadow-sm transition hover:shadow-md h-[300px] justify-between">
+            <div className="flex items-center justify-between mb-2 shrink-0">
+              <h3 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">System Load & Readers</h3>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#007BC4] animate-ping"></span>
+                <span className="text-[10px] font-bold text-[#007BC4]">Live Telemetry</span>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-12 gap-3 flex-1 min-h-0 items-center">
+              {/* Readers Pie representation */}
+              <div className="col-span-6 relative flex items-center justify-center h-full">
+                <ResponsiveContainer width="100%" height={110}>
+                  <PieChart>
+                    <Pie
+                      data={deviceData}
+                      innerRadius="75%"
+                      outerRadius="90%"
+                      paddingAngle={0}
+                      dataKey="value"
+                      stroke="none"
+                      startAngle={90}
+                      endAngle={-270}
+                    >
+                      {deviceData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-lg font-extrabold text-slate-900 leading-none">
+                    {mode === 'real' ? deviceList.length : 32}
+                  </span>
+                  <span className="text-[8px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Readers</span>
+                </div>
+              </div>
+
+              {/* Status and Active System Load metrics right panel */}
+              <div className="col-span-6 space-y-3">
+                {/* Simulated/Real CPU Load */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-600">
+                    <span className="flex items-center gap-1">
+                      <Cpu className="w-3 h-3 text-slate-400" /> CPU Load
+                    </span>
+                    <span className="text-slate-900">42%</span>
+                  </div>
+                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-[#007BC4] h-full rounded-full transition-all duration-500" style={{ width: '42%' }} />
+                  </div>
+                </div>
+
+                {/* Packet Polling Queue */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-600">
+                    <span>Sweep Frequency</span>
+                    <span className="text-emerald-600 font-extrabold">250 Hz</span>
+                  </div>
+                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                    <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: '78%' }} />
+                  </div>
+                </div>
+
+                {/* Active Antennas count */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[9px] font-bold text-slate-500">
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-100 text-emerald-600 border border-emerald-200 flex items-center justify-center text-[7px] font-bold justify-center flex-shrink-0">✓</span>
+                    <span>All Antennas Nominal</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Labels overlay bottom bar footer */}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between shrink-0">
+              {deviceData.map(d => (
+                <div key={d.name} className="flex items-center gap-1 leading-none">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: d.color }}></span>
+                  <span className="text-[10px] font-extrabold text-slate-700">{d.value}</span>
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight">{d.name}</span>
+                </div>
+              ))}
             </div>
           </div>
         );
@@ -834,8 +936,8 @@ export default function DashboardTab({
           <KpiCard 
             key={id} 
             title="Total Registered People" 
-            value={isReal ? registeredCount.toString() : "1,248"} 
-            sub={isReal ? "Registered personnel directory" : "↗ 12.5% vs yesterday"} 
+            value={registeredCount.toString()} 
+            sub="Registered personnel directory" 
             icon={<Users className="w-5 h-5 text-white" />} 
             iconColor="bg-[#007BC4]" 
             onClick={() => navigate('/people')} 
@@ -1124,8 +1226,8 @@ export default function DashboardTab({
             <div className="flex-1 overflow-y-auto p-5">
               {activeTab === 'metrics' ? (
                 <div className="flex flex-col gap-4">
-                  <div className="flex justify-between items-center bg-[#007BC4]/5 p-3 rounded-lg border border-[#007BC4]/10">
-                    <p className="text-[11px] leading-relaxed text-slate-600 font-medium">Customize which quick performance indicator cards are shown on top of the dashboard and rearrange their order.</p>
+                  <div className="flex flex-col gap-1.5 bg-[#007BC4]/5 p-3 rounded-lg border border-[#007BC4]/10">
+                    <p className="text-[11px] leading-relaxed text-slate-600 font-medium">✨ <strong>Drag-and-Drop Enabled:</strong> Drag any card using the grid handle to rearrange, or toggle its visibility checkbox.</p>
                   </div>
                   
                   <div className="flex flex-col gap-2">
@@ -1133,12 +1235,34 @@ export default function DashboardTab({
                       .filter(k => !k.deleted)
                       .sort((a,b) => a.order - b.order)
                       .map((kpi, idx, arr) => {
+                        const isDraggingObj = draggedIdx === idx;
+                        const isOver = dragOverIdx === idx;
+                        
                         return (
-                          <div 
-                            key={kpi.id} 
-                            className="flex items-center justify-between bg-slate-50 hover:bg-slate-100/70 p-3 rounded-lg border border-slate-100 transition-colors"
+                          <motion.div 
+                            layout
+                            id={`kpi-item-${kpi.id}`}
+                            key={kpi.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, idx)}
+                            onDragOver={(e) => handleDragOver(e, idx)}
+                            onDragEnd={handleDragEnd}
+                            onDrop={(e) => handleDrop(e, idx, 'kpi')}
+                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                            className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-grab active:cursor-grabbing select-none ${
+                              isDraggingObj 
+                                ? 'opacity-30 border-dashed border-[#007BC4] bg-slate-100' 
+                                : isOver 
+                                  ? 'border-[#007BC4] bg-[#007BC4]/10 shadow-md scale-[1.01]' 
+                                  : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
+                            }`}
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              {/* Grip Icon Drag Handle */}
+                              <div className="text-slate-400 hover:text-slate-600 p-0.5 pointer-events-none">
+                                <GripVertical className="w-4 h-4 shrink-0" />
+                              </div>
+                              
                               <button 
                                 onClick={() => handleToggleKpi(kpi.id)}
                                 className={`p-1.5 rounded-md hover:bg-white border transition shadow-xs ${kpi.visible ? 'text-[#007BC4] border-[#007BC4]/20 bg-[#007BC4]/5' : 'text-slate-400 border-slate-200 bg-white'}`}
@@ -1149,7 +1273,7 @@ export default function DashboardTab({
                               <span className={`text-xs font-bold ${kpi.visible ? 'text-slate-800' : 'text-slate-400 line-through'}`}>{kpi.title}</span>
                             </div>
                             
-                            {/* Sorting arrow controls */}
+                            {/* Actions bar */}
                             <div className="flex items-center gap-1">
                               <button 
                                 onClick={() => handleMoveKpiUp(idx)}
@@ -1175,15 +1299,15 @@ export default function DashboardTab({
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                          </div>
+                          </motion.div>
                         );
                       })}
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
-                  <div className="flex justify-between items-center bg-[#007BC4]/5 p-3 rounded-lg border border-[#007BC4]/10">
-                    <p className="text-[11px] leading-relaxed text-slate-600 font-medium">Resize panel widgets within a 12-column grid layout, toggling widgets visibility or sliding their ordering sequence up/down.</p>
+                  <div className="flex flex-col gap-1.5 bg-[#007BC4]/5 p-3 rounded-lg border border-[#007BC4]/10">
+                    <p className="text-[11px] leading-relaxed text-slate-600 font-medium">✨ <strong>Drag-and-Drop Enabled:</strong> Use the grippers to dynamically order active tracking widgets. Modify widths below to resize the dashboard grid columns.</p>
                   </div>
 
                   <div className="flex flex-col gap-3">
@@ -1191,13 +1315,37 @@ export default function DashboardTab({
                       .filter(p => !p.deleted)
                       .sort((a,b) => a.order - b.order)
                       .map((panel, idx, arr) => {
+                        const isDraggingObj = draggedIdx === idx;
+                        const isOver = dragOverIdx === idx;
+                        
                         return (
-                          <div 
-                            key={panel.id} 
-                            className={`p-3.5 rounded-lg border flex flex-col gap-2 transition ${panel.visible ? 'bg-slate-50/50 border-slate-200 hover:border-[#007BC4]/30 shadow-none' : 'bg-slate-50 border-slate-200/50 opacity-70 border-dashed'}`}
+                          <motion.div 
+                            layout
+                            id={`panel-item-${panel.id}`}
+                            key={panel.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, idx)}
+                            onDragOver={(e) => handleDragOver(e, idx)}
+                            onDragEnd={handleDragEnd}
+                            onDrop={(e) => handleDrop(e, idx, 'panel')}
+                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                            className={`p-3.5 rounded-lg border flex flex-col gap-2 transition-all cursor-grab active:cursor-grabbing select-none ${
+                              isDraggingObj
+                                ? 'opacity-30 border-dashed border-[#007BC4] bg-slate-100'
+                                : isOver
+                                  ? 'border-[#007BC4] bg-[#007BC4]/10 shadow-lg scale-[1.01]'
+                                  : panel.visible 
+                                    ? 'bg-slate-50/50 hover:bg-slate-50 border-slate-200 shadow-none' 
+                                    : 'bg-slate-50 border-slate-200/50 opacity-70 border-dashed'
+                            }`}
                           >
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                {/* Grip Drag Handle */}
+                                <div className="text-slate-400 hover:text-slate-600 p-0.5 pointer-events-none">
+                                  <GripVertical className="w-4 h-4 shrink-0" />
+                                </div>
+                                
                                 <button 
                                   onClick={() => handleTogglePanel(panel.id)}
                                   className={`p-1.5 rounded-md hover:bg-white border transition shadow-xs ${panel.visible ? 'text-[#007BC4] border-[#007BC4]/20 bg-[#007BC4]/5' : 'text-slate-400 border-slate-200 bg-white'}`}
@@ -1207,11 +1355,11 @@ export default function DashboardTab({
                                 </button>
                                 <div>
                                   <p className={`text-xs font-bold leading-tight ${panel.visible ? 'text-slate-800' : 'text-slate-400 line-through'}`}>{panel.title}</p>
-                                  <p className="text-[9px] text-slate-400 mt-0.5 leading-none">{panel.description}</p>
+                                  <p className="text-[9px] text-slate-400 mt-0.5 leading-tight max-w-[200px]">{panel.description}</p>
                                 </div>
                               </div>
                               
-                              {/* Reorder controls for panels */}
+                              {/* Alternative reorder keys */}
                               <div className="flex items-center gap-1 shrink-0">
                                 <button 
                                   onClick={() => handleMovePanelUp(idx)}
@@ -1259,7 +1407,7 @@ export default function DashboardTab({
                                 </div>
                               </div>
                             )}
-                          </div>
+                          </motion.div>
                         );
                       })}
                   </div>

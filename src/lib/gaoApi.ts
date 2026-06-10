@@ -72,6 +72,12 @@ class GaoApi {
   }
 
   async getHistoryTotalCount(customHeaders?: Record<string, string>): Promise<number> {
+    const isDemo = localStorage.getItem('gao_app_mode') === 'demo';
+    if (isDemo) {
+      // Return local simulated count
+      return 52;
+    }
+
     const headers = customHeaders || this.getProxyHeaders();
     const response = await fetch(`${this.host}/api/GetHistoryTotalCount`, {
       headers
@@ -82,6 +88,40 @@ class GaoApi {
   }
 
   async getHistoryRecords(skip: number, take: number, customHeaders?: Record<string, string>): Promise<HistoryRecord[]> {
+    const isDemo = localStorage.getItem('gao_app_mode') === 'demo';
+    if (isDemo) {
+      // Return high-quality local simulated records
+      const mockHistoricalPool: HistoryRecord[] = [
+        { TagID: "1", FirstName: "Alice", LastName: "Smith", LocationName: "Office", EnterTimeStr: "2026-06-10 11:15:00", LeaveTimeStr: "2026-06-10 12:05:00", Duration: 50 },
+        { TagID: "2", FirstName: "Bob", LastName: "Johnson", LocationName: "Entrance", EnterTimeStr: "2026-06-10 10:30:00", LeaveTimeStr: "2026-06-10 10:45:00", Duration: 15 },
+        { TagID: "3", FirstName: "Charlie", LastName: "Davis", LocationName: "Meeting Room", EnterTimeStr: "2026-06-10 09:00:00", LeaveTimeStr: "2026-06-10 10:30:00", Duration: 90 },
+        { TagID: "4", FirstName: "Diana", LastName: "Prince", LocationName: "Cafeteria", EnterTimeStr: "2026-06-10 12:00:00", LeaveTimeStr: "2026-06-10 12:45:00", Duration: 45 },
+        { TagID: "1", FirstName: "Alice", LastName: "Smith", LocationName: "Server Room", EnterTimeStr: "2026-06-10 08:30:00", LeaveTimeStr: "2026-06-10 08:55:00", Duration: 25 },
+        { TagID: "2", FirstName: "Bob", LastName: "Johnson", LocationName: "Office", EnterTimeStr: "2026-06-10 11:00:00", LeaveTimeStr: "2026-06-10 11:30:00", Duration: 30 },
+        { TagID: "3", FirstName: "Charlie", LastName: "Davis", LocationName: "Office", EnterTimeStr: "2026-06-10 10:45:00", LeaveTimeStr: "2026-06-10 11:15:00", Duration: 30 },
+        { TagID: "4", FirstName: "Diana", LastName: "Prince", LocationName: "Meeting Room", EnterTimeStr: "2026-06-10 13:00:00", LeaveTimeStr: "ACTIVE", Duration: 0 },
+        { TagID: "1", FirstName: "Alice", LastName: "Smith", LocationName: "Cafeteria", EnterTimeStr: "2026-06-10 10:00:00", LeaveTimeStr: "2026-06-10 10:20:00", Duration: 20 },
+        { TagID: "3", FirstName: "Charlie", LastName: "Davis", LocationName: "Server Room", EnterTimeStr: "2026-06-10 11:30:00", LeaveTimeStr: "2026-06-10 11:45:00", Duration: 15 }
+      ];
+
+      // Pad pool with simulated indexed entries to support pagination cleanly
+      const paddedPool = [...mockHistoricalPool];
+      for (let i = mockHistoricalPool.length; i < 52; i++) {
+        const indexSeed = i + 1;
+        paddedPool.push({
+          TagID: String((indexSeed % 4) + 1),
+          FirstName: indexSeed % 2 === 0 ? "Jane" : "John",
+          LastName: indexSeed % 3 === 0 ? "Doe" : "Smith",
+          LocationName: indexSeed % 4 === 0 ? "Server Room" : indexSeed % 4 === 1 ? "Cafeteria" : "Office",
+          EnterTimeStr: `2026-06-10 07:${10 + indexSeed}:00`,
+          LeaveTimeStr: `2026-06-10 07:${30 + indexSeed}:00`,
+          Duration: 20
+        });
+      }
+
+      return paddedPool.slice(skip, skip + take);
+    }
+
     const headers = customHeaders || this.getProxyHeaders();
     const response = await fetch(`${this.host}/api/GetHistoryRecords/${skip}/${take}`, {
       headers
@@ -92,6 +132,36 @@ class GaoApi {
   }
 
   async getTagsInRealtime(customHeaders?: Record<string, string>): Promise<RealtimeTag[]> {
+    const isDemo = localStorage.getItem('gao_app_mode') === 'demo';
+    if (isDemo) {
+      // Simulate slightly wandering location scanning ticks
+      const nowStr = new Date().toISOString();
+      
+      // Let's retrieve current tag zones or fluctuate them based on slow clock schedules
+      const seconds = Math.floor(Date.now() / 1000) % 60;
+      let spot1 = "Office";
+      let spot2 = "Cafeteria";
+      let spot3 = "Meeting Room";
+      let spot4 = "Office";
+
+      if (seconds < 15) {
+        spot1 = "Office"; spot2 = "Entrance"; spot3 = "Meeting Room"; spot4 = "Cafeteria";
+      } else if (seconds < 30) {
+        spot1 = "Server Room"; spot2 = "Office"; spot3 = "Cafeteria"; spot4 = "Entrance";
+      } else if (seconds < 45) {
+        spot1 = "Office"; spot2 = "Server Room"; spot3 = "Meeting Room"; spot4 = "Ofice";
+      } else {
+        spot1 = "Cafeteria"; spot2 = "Office"; spot3 = "Entrance"; spot4 = "Server Room";
+      }
+
+      return [
+        { TagID: "1", Timestamp: nowStr, Location: spot1 },
+        { TagID: "2", Timestamp: nowStr, Location: spot2 },
+        { TagID: "3", Timestamp: nowStr, Location: spot3 },
+        { TagID: "4", Timestamp: nowStr, Location: spot4 }
+      ];
+    }
+
     const headers = customHeaders || this.getProxyHeaders();
     const response = await fetch(`${this.host}/api/GetTagsInRealtime`, {
       headers
