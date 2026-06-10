@@ -25,7 +25,6 @@ import PlaybackTab from './components/PlaybackTab';
 import DevicesTab from './components/DevicesTab';
 import SettingsTab from './components/SettingsTab';
 import ProfileModal from './components/ProfileModal';
-import ChatBot from './components/ChatBot';
 import Login from './components/Login';
 import { startGaoSync, stopGaoSync } from './lib/gaoSyncService';
 import { auth, db, signOut } from './lib/firebase';
@@ -505,7 +504,6 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       </main>
 
       <ProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} onLogout={onLogout} />
-      <ChatBot />
     </div>
   );
 }
