@@ -166,7 +166,7 @@ export default function LocationsTab() {
   };
 
   return (
-    <div className="flex flex-col gap-6 w-full h-full p-6 bg-slate-50">
+    <div className="flex flex-col gap-6 w-full p-6 max-w-7xl mx-auto">
       <div className="flex justify-between items-center shrink-0">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Location Management</h2>

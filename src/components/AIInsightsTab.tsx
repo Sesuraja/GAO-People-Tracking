@@ -294,7 +294,7 @@ export default function AIInsightsTab({ people = [] }: AIInsightsTabProps) {
   };
 
   return (
-    <div className="h-full flex flex-col p-6 max-w-7xl mx-auto min-h-0 w-full overflow-y-auto">
+    <div className="flex flex-col p-6 max-w-7xl mx-auto w-full gap-6">
       {/* Title block */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 shrink-0 gap-4">
         <div>

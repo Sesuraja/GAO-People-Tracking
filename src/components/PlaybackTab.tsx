@@ -121,7 +121,7 @@ export default function PlaybackTab({ people, zones }: { people: Person[], zones
   const currentTime = new Date(startTime.getTime() + timeIndex * 60000 * 5);
 
   return (
-    <div className="flex-1 flex flex-col p-6 gap-6 bg-slate-50 min-h-0 h-full">
+    <div className="w-full flex flex-col p-6 gap-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between shrink-0 gap-4">
         <div>
            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Historical Playback & Data</h2>

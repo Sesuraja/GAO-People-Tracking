@@ -369,8 +369,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       <main className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900 transition-colors">
         <TopBar />
         
-        <div className="flex-1 overflow-hidden relative">
-          <div className="absolute inset-0 flex flex-col">
+        <div className="flex-1 overflow-y-auto relative min-h-0 w-full flex flex-col">
+          <div className="min-h-full flex flex-col w-full flex-1">
             <Routes>
               <Route path="/" element={
                  <ProtectedRoute 

@@ -803,7 +803,7 @@ export default function SettingsTab() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row w-full h-full bg-slate-50">
+    <div className="flex flex-col md:flex-row w-full bg-slate-50">
       {/* Settings Sidebar */}
       <div className="w-full md:w-64 bg-white border-r border-slate-200 shrink-0 flex flex-col p-4 shadow-sm z-10">
         <h2 className="text-xl font-bold text-slate-900 mb-6 px-2 tracking-tight">

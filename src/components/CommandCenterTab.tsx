@@ -11,7 +11,7 @@ const MOCK_SITES = [
 
 export default function CommandCenterTab() {
   return (
-    <div className="h-full flex flex-col p-6 max-w-7xl mx-auto min-h-0">
+    <div className="w-full flex flex-col p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8 shrink-0">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">

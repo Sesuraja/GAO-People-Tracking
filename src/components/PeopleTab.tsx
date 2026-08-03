@@ -46,7 +46,7 @@ export default function PeopleTab({ people }: { people: Person[] }) {
   };
 
   return (
-    <div className="flex flex-col gap-6 w-full h-full p-6 relative">
+    <div className="flex flex-col gap-6 w-full p-6 max-w-7xl mx-auto relative">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">People Directory</h2>

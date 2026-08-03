@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ShieldAlert, AlertTriangle, CheckCircle, Clock, Paperclip, ChevronRight, FileText, Plus } from 'lucide-react';
+import { ShieldAlert, AlertTriangle, CheckCircle, Clock, Paperclip, ChevronRight, FileText, Plus, Download } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import ExportReportModal from './ExportReportModal';
 
 const MOCK_INCIDENTS = [
   { id: 'INC-2026-089', type: 'Tailgating Detection', location: 'Server Room Alpha', severity: 'High', status: 'Open', assignedTo: 'mark.s@gaostaff.com', time: '10 mins ago', descriptions: 'Unauthorized tailgating detected behind authorized staff ID 8829.' },
@@ -10,9 +11,16 @@ const MOCK_INCIDENTS = [
 
 export default function IncidentsTab() {
   const [selectedIncident, setSelectedIncident] = useState<any>(MOCK_INCIDENTS[0]);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   return (
-    <div className="h-full flex flex-col p-6 max-w-7xl mx-auto min-h-0">
+    <div className="w-full flex flex-col p-6 max-w-7xl mx-auto">
+      <ExportReportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        defaultCategory="incidents"
+        customData={MOCK_INCIDENTS}
+      />
       <div className="flex items-center justify-between mb-8 shrink-0">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
@@ -21,9 +29,12 @@ export default function IncidentsTab() {
           </h2>
           <p className="text-slate-500 font-medium tracking-tight">Track, assign, investigate, and resolve security events and system anomalies.</p>
         </div>
-        <button className="flex items-center gap-2 bg-[#007BC4] text-white px-4 py-2 rounded-xl hover:bg-[#006aa9] font-bold text-sm shadow-md transition">
-           <FileText className="w-4 h-4" />
-           Generate Report
+        <button 
+          onClick={() => setIsExportModalOpen(true)}
+          className="flex items-center gap-2 bg-[#007BC4] text-white px-4 py-2 rounded-xl hover:bg-[#006aa9] font-bold text-sm shadow-md transition"
+        >
+           <Download className="w-4 h-4" />
+           Export Incident Report
         </button>
       </div>
 

@@ -1,11 +1,13 @@
-import { Users, AlertTriangle, Clock, ShieldAlert, Bell, Sun, Moon, Maximize, Calendar, Radio, Sparkles } from 'lucide-react';
+import { Users, AlertTriangle, Clock, ShieldAlert, Bell, Sun, Moon, Maximize, Calendar, Radio, Sparkles, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useContext } from 'react';
 import { AppModeContext } from '../App';
+import ExportReportModal from './ExportReportModal';
 
 export default function TopBar() {
   const navigate = useNavigate();
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const { mode } = useContext(AppModeContext);
   
   useEffect(() => {
@@ -29,6 +31,11 @@ export default function TopBar() {
 
   return (
     <header className="h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center px-6 justify-between shrink-0 shadow-sm z-10 w-full relative transition-colors">
+      <ExportReportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        defaultCategory="attendance"
+      />
       <div className="flex items-center gap-4">
         <div className="p-2 bg-[#007BC4]/10 rounded border border-[#007BC4]/20 hidden md:block">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007BC4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/><path d="m14 12 4-4-4-4"/><path d="m10 12-4 4 4 4"/></svg>
@@ -39,7 +46,17 @@ export default function TopBar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        {/* Export Data Button */}
+        <button
+          onClick={() => setIsExportOpen(true)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-bold transition shadow-sm"
+          title="Export Attendance, Incidents, Visitors, or Personnel records"
+        >
+          <Download className="w-3.5 h-3.5 text-[#007BC4]" />
+          <span>Export Data Report</span>
+        </button>
+
         {/* Dynamic Interactive API Connection Pill */}
         {mode === 'real' ? (
           <button 
@@ -66,29 +83,25 @@ export default function TopBar() {
         )}
         
         {/* Date Picker Mock */}
-        <button className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 shadow-sm text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition hover:text-[#007BC4] dark:hover:text-[#007BC4]">
-           <Calendar className="w-4 h-4 text-slate-400" />
+        <button className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 shadow-sm text-xs hover:bg-slate-50 dark:hover:bg-slate-700 transition hover:text-[#007BC4] dark:hover:text-[#007BC4]">
+           <Calendar className="w-3.5 h-3.5 text-slate-400" />
            <span className="font-medium">{new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ml-2 text-slate-400"><path d="m6 9 6 6 6-6"/></svg>
         </button>
 
         {/* Action Icons */}
-        <div className="flex items-center gap-2 ml-2">
+        <div className="flex items-center gap-1.5 ml-1">
            <button 
              onClick={() => navigate('/alerts')}
-             className="relative w-10 h-10 rounded-lg flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-[#007BC4] transition"
+             className="relative w-9 h-9 rounded-lg flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-[#007BC4] transition"
            >
-             <Bell className="w-5 h-5" />
+             <Bell className="w-4 h-4" />
              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
            </button>
            <button 
              onClick={() => setIsDark(!isDark)}
-             className="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-[#007BC4] transition hidden md:flex"
+             className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-[#007BC4] transition hidden md:flex"
            >
-             {isDark ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-           </button>
-           <button className="w-10 h-10 rounded-lg flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-[#007BC4] transition hidden md:flex">
-             <Maximize className="w-5 h-5" />
+             {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
            </button>
         </div>
       </div>

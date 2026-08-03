@@ -40,7 +40,7 @@ export default function LiveTrackingTab({ people, zones, highlightedPersonId, is
   const { tags, error, isLoading: feedIsLoading } = useGaoRealtime(2000);
 
   return (
-    <div className="flex-1 flex flex-col lg:flex-row p-6 gap-6 bg-slate-50 min-h-0 h-full">
+    <div className="w-full flex flex-col lg:flex-row p-6 gap-6 max-w-7xl mx-auto">
       <div className="flex-1 flex flex-col gap-4 min-h-0">
         <div className="flex justify-between items-center shrink-0">
           <div>

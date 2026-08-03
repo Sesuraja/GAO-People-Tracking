@@ -1008,7 +1008,7 @@ export default function DashboardTab({
   }
 
   return (
-    <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6 bg-slate-50 min-h-0">
+    <div className="w-full p-4 md:p-6 lg:p-8 flex flex-col gap-6 max-w-7xl mx-auto">
       
       {/* Premium Operations custom header bar with Configuration button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 border-b border-slate-200/60 pb-4">

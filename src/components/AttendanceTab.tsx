@@ -3,9 +3,11 @@ import { Person } from '../lib/simulation';
 import { Clock, CheckCircle2, UserX, AlertTriangle, Download, Search, Briefcase } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import ExportReportModal from './ExportReportModal';
 
 export default function AttendanceTab({ people }: { people: Person[] }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const attendanceData = useMemo(() => {
     return people.map(p => {
@@ -35,7 +37,13 @@ export default function AttendanceTab({ people }: { people: Person[] }) {
   const filteredData = attendanceData.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="h-full flex flex-col p-6 max-w-7xl mx-auto min-h-0">
+    <div className="w-full flex flex-col p-6 max-w-7xl mx-auto">
+      <ExportReportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        defaultCategory="attendance"
+        customData={attendanceData}
+      />
       <div className="flex items-center justify-between mb-8 shrink-0">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
@@ -55,7 +63,10 @@ export default function AttendanceTab({ people }: { people: Person[] }) {
               className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm w-64 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#007BC4]/20 focus:border-[#007BC4] transition"
             />
           </div>
-          <button className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-xl hover:bg-slate-50 font-bold text-sm shadow-sm transition">
+          <button 
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-xl hover:bg-slate-50 font-bold text-sm shadow-sm transition"
+          >
              <Download className="w-4 h-4" />
              Export Report
           </button>
