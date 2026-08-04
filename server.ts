@@ -1,7 +1,6 @@
 import express from 'express';
 import path from 'path';
 import cors from 'cors';
-import { createServer as createViteServer } from 'vite';
 import 'dotenv/config';
 import { GoogleGenAI, Type } from '@google/genai';
 import fs from 'fs';
@@ -1135,13 +1134,17 @@ const PORT = Number(process.env.PORT) || 3000;
   // Vite middleware for local development / container runtime (disabled on Vercel)
   if (!process.env.VERCEL) {
     if (process.env.NODE_ENV !== "production") {
-      createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      }).then(vite => {
-        app.use(vite.middlewares);
+      import('vite').then(({ createServer: createViteServer }) => {
+        createViteServer({
+          server: { middlewareMode: true },
+          appType: "spa",
+        }).then(vite => {
+          app.use(vite.middlewares);
+        }).catch(err => {
+          console.error("Failed to start Vite dev server middleware:", err);
+        });
       }).catch(err => {
-        console.error("Failed to start Vite dev server middleware:", err);
+        console.error("Failed to load Vite module:", err);
       });
     } else {
       const distPath = path.join(process.cwd(), 'dist');
