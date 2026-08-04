@@ -61,7 +61,19 @@ const DOORS: Door[] = [
   }
 ];
 
-export default function LiveFloorMap({ people, zones, highlightedPersonId, initialFocusZone }: { people: Person[], zones: Record<string, {x:number; y:number; width:number; height:number}>, highlightedPersonId?: string | null, initialFocusZone?: string | null, floorplanUrl?: string | null }) {
+export default function LiveFloorMap({ 
+  people, 
+  zones, 
+  highlightedPersonId, 
+  initialFocusZone, 
+  floorplanUrl 
+}: { 
+  people: Person[]; 
+  zones: Record<string, {x:number; y:number; width:number; height:number}>; 
+  highlightedPersonId?: string | null; 
+  initialFocusZone?: string | null; 
+  floorplanUrl?: string | null; 
+}) {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showReaders, setShowReaders] = useState(true);
   const [selectedZone, setSelectedZone] = useState<string | null>(initialFocusZone || null);
@@ -72,10 +84,44 @@ export default function LiveFloorMap({ people, zones, highlightedPersonId, initi
     }
   }, [initialFocusZone]);
 
-  // Read clean physical rooms, filtering out duplicated database entries if present
-  const zoneEntries = Object.entries(zones).filter(([name]) => 
-    ['Entrance', 'Office', 'Meeting Room', 'Server Room', 'Cafeteria'].includes(name)
-  );
+  // Combine zones passed in with any extra zones found in active people
+  const allZoneNames = useMemo(() => {
+    const names = new Set(Object.keys(zones));
+    people.forEach(p => {
+      if (p.currentZone) names.add(p.currentZone);
+    });
+    return Array.from(names);
+  }, [zones, people]);
+
+  const defaultZoneBounds: Record<string, { x: number; y: number; width: number; height: number }> = {
+    'Cafeteria': { x: 5, y: 10, width: 30, height: 35 },
+    'Meeting Room': { x: 40, y: 10, width: 28, height: 35 },
+    'Server Room': { x: 72, y: 10, width: 23, height: 35 },
+    'Entrance': { x: 5, y: 55, width: 30, height: 35 },
+    'Office': { x: 40, y: 55, width: 55, height: 35 }
+  };
+
+  const zoneEntries = useMemo(() => {
+    return allZoneNames.map((name, idx) => {
+      let rect = zones[name];
+      if (!rect || !rect.width || !rect.height) {
+        if (defaultZoneBounds[name]) {
+          rect = defaultZoneBounds[name];
+        } else {
+          // Generate clean grid placement for extra/custom zones
+          const col = idx % 3;
+          const row = Math.floor(idx / 3);
+          rect = {
+            x: 5 + (col * 31),
+            y: 5 + (row * 30),
+            width: 28,
+            height: 25
+          };
+        }
+      }
+      return [name, rect] as [string, { x: number; y: number; width: number; height: number }];
+    });
+  }, [allZoneNames, zones]);
 
   const selectedZoneData = useMemo(() => {
     if (!selectedZone) return null;
@@ -109,6 +155,13 @@ export default function LiveFloorMap({ people, zones, highlightedPersonId, initi
       {/* Map Container */}
       <div className="relative flex-1 w-full h-full border border-slate-200 rounded-2xl bg-white z-10 overflow-hidden shadow-sm flex flex-col items-center justify-center p-4">
         
+        {/* Render custom architectural floorplan image if uploaded in Locations */}
+        {floorplanUrl && (
+          <div className="absolute inset-0 z-0 pointer-events-none p-3 opacity-30 flex items-center justify-center">
+            <img src={floorplanUrl} alt="Facility Floor Plan" className="w-full h-full object-contain rounded-xl" />
+          </div>
+        )}
+
         {/* Subtle architectural floor background grid */}
         <div className="absolute inset-0 pointer-events-none z-0" style={{ 
           backgroundImage: 'linear-gradient(rgba(0,123,196,0.06) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(0,123,196,0.06) 1.5px, transparent 1.5px)', 

@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import AIFeed from './AIFeed';
+import SystemHealthWidget from './SystemHealthWidget';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { useMemo, ReactNode, useState, useEffect, useContext } from 'react';
 import React from 'react';
@@ -69,6 +70,7 @@ const DEFAULT_KPIS: KPIConfig[] = [
 ];
 
 const DEFAULT_PANELS: PanelConfig[] = [
+  { id: 'system_health', title: 'Database & System Health', description: 'Real-time connection state, latency monitoring, and telemetry for Cloud Firestore and MongoDB.', visible: true, order: 0, width: 'full' },
   { id: 'occupancy_panel', title: 'Zone Occupancy & Floor Status', description: 'Device health, live zone distribution tracker, and recent movement activity logs.', visible: true, order: 1, width: '2/3' },
   { id: 'alerts_panel', title: 'Active Alarms Tracker', description: 'Live alerts, security threats, sensor events feed with custom action routing.', visible: true, order: 2, width: '1/3' },
   { id: 'attendance_summary', title: 'Attendance Module', description: 'First entry, last exit, and working hours summary.', visible: true, order: 3, width: '1/3' },
@@ -542,6 +544,9 @@ export default function DashboardTab({
   // Direct content dispatcher mapping widget configurations dynamically
   const renderPanelContent = (id: string) => {
     switch (id) {
+      case 'system_health':
+        return <SystemHealthWidget />;
+
       case 'occupancy_panel':
         return (
           <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col shadow-sm transition hover:shadow-md h-[480px]">

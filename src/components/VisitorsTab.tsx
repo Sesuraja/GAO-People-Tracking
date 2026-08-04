@@ -7,16 +7,22 @@ import { db } from '../lib/firebase';
 import QRCode from 'react-qr-code';
 
 const INITIAL_MOCK_VISITORS = [
-  { id: 'VIS-449', name: 'Alice Walker', company: 'TechCorp Inc.', host: 'sarah.j@gaostaff.com', status: 'Pre-Registered', time: '10:00 AM Today', tag: 'Not Assigned', email: 'alice@techcorp.com', location: '', duration: '', path: [] },
-  { id: 'VIS-450', name: 'Robert Fox', company: 'External Audits LLC', host: 'mike.t@gaostaff.com', status: 'Active', time: 'Arrived 09:12 AM', tag: 'T089 (Visitor Badge)', email: 'robert@externalaudits.com', location: 'Server Room', duration: '2h 15m', path: ['Lobby', 'Engineering Lab', 'Server Room'] },
-  { id: 'VIS-448', name: 'Elena Smith', company: 'Maintenance Partner', host: 'facilities@gaostaff.com', status: 'Completed', time: 'Left 08:45 AM', tag: 'Returned', email: 'elena@maintenance.com', location: 'Checked Out', duration: '45m', path: ['Lobby', 'Cafeteria', 'Lobby'] }
+  { id: 'VIS-452', name: 'Alice Walker', company: 'TechCorp Inc.', host: 'sarah.j@gaostaff.com', status: 'Pre-Registered', time: '10:00 AM Today', tag: 'Not Assigned', email: 'alice@techcorp.com', location: 'Lobby Waiting', duration: '', path: [] },
+  { id: 'VIS-451', name: 'Robert Fox', company: 'External Audits LLC', host: 'mike.t@gaostaff.com', status: 'Active', time: 'Arrived 09:12 AM', tag: 'T089 (Visitor Badge)', email: 'robert@externalaudits.com', location: 'Server Room B2', duration: '2h 15m', path: ['Lobby', 'Engineering Lab', 'Server Room B2'] },
+  { id: 'VIS-450', name: 'Priya Sharma', company: 'BioHealth Tech', host: 'lab.lead@gaostaff.com', status: 'Active', time: 'Arrived 09:30 AM', tag: 'T094 (Visitor Badge)', email: 'priya@biohealth.com', location: 'R&D Robotics Lab', duration: '1h 50m', path: ['Lobby', 'R&D Robotics Lab'] },
+  { id: 'VIS-449', name: 'Jonathan Crane', company: 'City Building Safety', host: 'facilities@gaostaff.com', status: 'Active', time: 'Arrived 06:15 AM', tag: 'T012 (Vendor Badge)', email: 'j.crane@citygov.org', location: 'HVAC Plant 1', duration: '4h 40m', path: ['Lobby', 'Basement Utility', 'HVAC Plant 1'], isOverstayed: true, arrivalTime: Date.now() - 5 * 3600 * 1000 },
+  { id: 'VIS-448', name: 'Elena Smith', company: 'Maintenance Partner', host: 'facilities@gaostaff.com', status: 'Completed', time: 'Left 08:45 AM', tag: 'Returned', email: 'elena@maintenance.com', location: 'Checked Out', duration: '45m', path: ['Lobby', 'Cafeteria', 'Lobby'] },
+  { id: 'VIS-447', name: 'Carlos Mendez', company: 'Apex Logistics Corp', host: 'warehouse@gaostaff.com', status: 'Pre-Registered', time: '02:00 PM Today', tag: 'Not Assigned', email: 'carlos@apexlogistics.com', location: 'Pending Entry', duration: '', path: [] },
+  { id: 'VIS-446', name: 'Dr. Sarah Lin', company: 'Quantum Dynamics', host: 'david.m@gaostaff.com', status: 'Active', time: 'Arrived 10:05 AM', tag: 'T042 (VIP Badge)', email: 'slin@quantum.io', location: 'Executive Suite A101', duration: '1h 10m', path: ['Lobby', 'Elevator B', 'Executive Suite A101'] }
 ];
 
 export default function VisitorsTab() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pre-Registered' | 'Completed' | 'Overstayed'>('All');
   const [visitors, setVisitors] = useState<any[]>([]);
   const [isPreRegisterModalOpen, setIsPreRegisterModalOpen] = useState(false);
   const [selectedVisitor, setSelectedVisitor] = useState<any>(null);
+  const [isFeeding, setIsFeeding] = useState(false);
   
   const [newVisitor, setNewVisitor] = useState({ name: '', company: '', host: '', email: '', date: '', time: '' });
 
@@ -39,7 +45,6 @@ export default function VisitorsTab() {
     // Subscribe to visitors
     const unsubscribe = onSnapshot(collection(db, 'visitors'), (snapshot) => {
       const visitorsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-      // Sort by status somewhat or just use id
       setVisitors(visitorsData.sort((a, b) => b.id.localeCompare(a.id)));
     }, (error) => {
       console.error('Error fetching visitors:', error);
@@ -47,6 +52,43 @@ export default function VisitorsTab() {
 
     return () => unsubscribe();
   }, []);
+
+  const handleFeedSampleVisitors = async () => {
+    setIsFeeding(true);
+    try {
+      const sampleNames = [
+        { name: 'Marcus Vance', company: 'CyberSec Global', host: 'security@gaostaff.com', loc: 'Server Room B2' },
+        { name: 'Aisha Patel', company: 'CloudScale Inc.', host: 'sarah.j@gaostaff.com', loc: 'Executive Suite A101' },
+        { name: 'David Kim', company: 'Nexus Robotics', host: 'lab.lead@gaostaff.com', loc: 'R&D Robotics Lab' },
+        { name: 'Emma Watson', company: 'EcoEnergy Solutions', host: 'facilities@gaostaff.com', loc: 'Solar Roof' }
+      ];
+
+      for (let i = 0; i < sampleNames.length; i++) {
+        const item = sampleNames[i];
+        const newId = `VIS-${Math.floor(Math.random() * 800) + 500}`;
+        const tagNum = Math.floor(Math.random() * 80) + 10;
+        const freshRecord = {
+          id: newId,
+          name: item.name,
+          company: item.company,
+          host: item.host,
+          email: `${item.name.toLowerCase().replace(' ', '.')}@partner.com`,
+          status: i % 2 === 0 ? 'Active' : 'Pre-Registered',
+          time: i % 2 === 0 ? `Arrived ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : `11:${15 * (i + 1)} AM Today`,
+          tag: i % 2 === 0 ? `T0${tagNum} (Visitor Badge)` : 'Not Assigned',
+          location: i % 2 === 0 ? item.loc : 'Pending Arrival',
+          duration: i % 2 === 0 ? '15m' : '',
+          path: i % 2 === 0 ? ['Lobby', item.loc] : [],
+          qrCodeRef: `QR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+        };
+        await setDoc(doc(db, 'visitors', newId), freshRecord);
+      }
+    } catch (err) {
+      console.error("Error feeding visitors:", err);
+    } finally {
+      setIsFeeding(false);
+    }
+  };
 
   useEffect(() => {
     // Background effect to identify overstayed visitors
@@ -67,11 +109,18 @@ export default function VisitorsTab() {
     return () => clearInterval(interval);
   }, [visitors]);
 
-  const filteredVisitors = visitors.filter(v => 
-    v.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    v.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    v.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredVisitors = visitors.filter(v => {
+    const matchesSearch = v.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      v.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      v.id.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    if (statusFilter === 'Active') return v.status === 'Active' && !v.isOverstayed;
+    if (statusFilter === 'Pre-Registered') return v.status === 'Pre-Registered';
+    if (statusFilter === 'Completed') return v.status === 'Completed';
+    if (statusFilter === 'Overstayed') return v.status === 'Active' && v.isOverstayed;
+    return true;
+  });
 
   const handlePreRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,15 +184,15 @@ export default function VisitorsTab() {
 
   return (
     <div className="w-full flex flex-col p-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8 shrink-0">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 shrink-0">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
             <ClipboardCheck className="w-6 h-6 text-[#007BC4]" />
             Visitor Lifecycle
           </h2>
-          <p className="text-slate-500 font-medium tracking-tight">Manage pre-registrations, tag assignments, and visitor tracking.</p>
+          <p className="text-slate-500 font-medium tracking-tight">Manage pre-registrations, tag assignments, and live visitor tracking.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
@@ -151,13 +200,52 @@ export default function VisitorsTab() {
               placeholder="Search visitors..." 
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm w-64 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#007BC4]/20 focus:border-[#007BC4] transition"
+              className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm w-52 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#007BC4]/20 focus:border-[#007BC4] transition"
             />
           </div>
-          <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-2 rounded-lg text-xs font-bold shadow-sm">
-             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-             GAO API Visitor Sync Active
-          </div>
+          
+          <button 
+            onClick={handleFeedSampleVisitors}
+            disabled={isFeeding}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <UserPlus className="w-4 h-4" />
+            {isFeeding ? 'Feeding Visitors...' : 'Feed New Visitors'}
+          </button>
+
+          <button 
+            onClick={() => setIsPreRegisterModalOpen(true)}
+            className="px-4 py-2 bg-[#007BC4] hover:bg-[#006aa9] text-white rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1.5"
+          >
+            <UserPlus className="w-4 h-4" />
+            Pre-Register Visitor
+          </button>
+        </div>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 bg-slate-100 p-1.5 rounded-xl">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {(['All', 'Active', 'Pre-Registered', 'Completed', 'Overstayed'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setStatusFilter(tab)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+                statusFilter === tab 
+                  ? 'bg-white text-slate-900 shadow-sm' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              {tab === 'All' && `All (${visitors.length})`}
+              {tab === 'Active' && `Active On-Site (${visitors.filter(v => v.status === 'Active' && !v.isOverstayed).length})`}
+              {tab === 'Pre-Registered' && `Pre-Registered (${visitors.filter(v => v.status === 'Pre-Registered').length})`}
+              {tab === 'Completed' && `Completed (${visitors.filter(v => v.status === 'Completed').length})`}
+              {tab === 'Overstayed' && `Overstayed (${visitors.filter(v => v.status === 'Active' && v.isOverstayed).length})`}
+            </button>
+          ))}
+        </div>
+        <div className="text-xs text-slate-500 font-medium px-2">
+           Showing <span className="font-bold text-slate-900">{filteredVisitors.length}</span> of {visitors.length} visitor records
         </div>
       </div>
 
@@ -346,6 +434,125 @@ export default function VisitorsTab() {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pre-Register Modal */}
+      {isPreRegisterModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-[#007BC4]" />
+                Pre-Register New Visitor
+              </h3>
+              <button onClick={() => setIsPreRegisterModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handlePreRegisterSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Visitor Full Name</label>
+                <div className="relative">
+                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="e.g. Eleanor Vance"
+                    value={newVisitor.name}
+                    onChange={e => setNewVisitor({ ...newVisitor, name: e.target.value })}
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#007BC4]/20 focus:border-[#007BC4]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Company / Org</label>
+                  <div className="relative">
+                    <Building className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="e.g. Apex Dynamics"
+                      value={newVisitor.company}
+                      onChange={e => setNewVisitor({ ...newVisitor, company: e.target.value })}
+                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#007BC4]/20 focus:border-[#007BC4]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Visitor Email</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input 
+                      type="email" 
+                      required 
+                      placeholder="e.g. eleanor@apex.com"
+                      value={newVisitor.email}
+                      onChange={e => setNewVisitor({ ...newVisitor, email: e.target.value })}
+                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#007BC4]/20 focus:border-[#007BC4]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Host Email / Staff Member</label>
+                <div className="relative">
+                  <Briefcase className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input 
+                    type="text" 
+                    placeholder="sarah.j@gaostaff.com"
+                    value={newVisitor.host}
+                    onChange={e => setNewVisitor({ ...newVisitor, host: e.target.value })}
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#007BC4]/20 focus:border-[#007BC4]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Expected Date</label>
+                  <input 
+                    type="text" 
+                    placeholder="Today or YYYY-MM-DD"
+                    value={newVisitor.date}
+                    onChange={e => setNewVisitor({ ...newVisitor, date: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#007BC4]/20 focus:border-[#007BC4]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Expected Time</label>
+                  <input 
+                    type="text" 
+                    placeholder="10:30 AM"
+                    value={newVisitor.time}
+                    onChange={e => setNewVisitor({ ...newVisitor, time: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#007BC4]/20 focus:border-[#007BC4]"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex justify-end gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setIsPreRegisterModalOpen(false)}
+                  className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-5 py-2 bg-[#007BC4] hover:bg-[#006aa9] text-white rounded-lg text-sm font-bold shadow-md transition"
+                >
+                  Create Pre-Registration
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

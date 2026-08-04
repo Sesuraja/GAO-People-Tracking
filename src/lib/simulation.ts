@@ -75,15 +75,52 @@ export interface AIAlert {
   resolved?: boolean;
 }
 
+export function normalizeZoneName(location?: string | null): string {
+  if (!location) return 'Entrance';
+  const loc = location.trim();
+  const lower = loc.toLowerCase();
+  if (lower === 'zone1' || lower === 'entrance' || lower === 'gate' || lower === 'gate 1' || lower === 'main entrance') return 'Entrance';
+  if (lower === 'zone2' || lower === 'meeting room' || lower === 'd6' || lower === 'conference' || lower === 'meeting') return 'Meeting Room';
+  if (lower === 'office' || lower === 'main office' || lower === 'workplace') return 'Office';
+  if (lower === 'server room' || lower === 'datacenter' || lower === 'server' || lower === 'server vault') return 'Server Room';
+  if (lower === 'cafeteria' || lower === 'd8' || lower === 'breakroom' || lower === 'canteen') return 'Cafeteria';
+  return loc;
+}
+
+const DEFAULT_ROOM_BOUNDS: Record<string, { x: number; y: number; width: number; height: number }> = {
+  'Cafeteria': { x: 5, y: 10, width: 30, height: 35 },
+  'Meeting Room': { x: 40, y: 10, width: 28, height: 35 },
+  'Server Room': { x: 72, y: 10, width: 23, height: 35 },
+  'Entrance': { x: 5, y: 55, width: 30, height: 35 },
+  'Office': { x: 40, y: 55, width: 55, height: 35 }
+};
+
+export function getZoneRect(zoneName: string, dynamicZones?: Record<string, any>) {
+  const normalized = normalizeZoneName(zoneName);
+
+  if (DEFAULT_ROOM_BOUNDS[normalized]) {
+    return DEFAULT_ROOM_BOUNDS[normalized];
+  }
+
+  if (dynamicZones && dynamicZones[normalized] && dynamicZones[normalized].width >= 10) {
+    return dynamicZones[normalized];
+  }
+
+  if (dynamicZones && dynamicZones[zoneName] && dynamicZones[zoneName].width >= 10) {
+    return dynamicZones[zoneName];
+  }
+
+  return { x: 10, y: 10, width: 25, height: 25 };
+}
+
 const ZONES: Record<string, { x: number; y: number; width: number; height: number }> = {
-  'Entrance': { x: 10, y: 80, width: 20, height: 15 },
-  'Office': { x: 40, y: 40, width: 50, height: 30 },
-  'Meeting Room': { x: 40, y: 10, width: 30, height: 20 },
-  'Server Room': { x: 80, y: 10, width: 10, height: 20 },
-  'Cafeteria': { x: 10, y: 10, width: 20, height: 40 },
-  'Zone1': { x: 10, y: 80, width: 20, height: 15 },
-  'd6': { x: 40, y: 10, width: 30, height: 20 },
-  'd8': { x: 10, y: 10, width: 20, height: 40 }
+  ...DEFAULT_ROOM_BOUNDS,
+  'Zone1': DEFAULT_ROOM_BOUNDS['Entrance'],
+  'Zone2': DEFAULT_ROOM_BOUNDS['Meeting Room'],
+  'd6': DEFAULT_ROOM_BOUNDS['Meeting Room'],
+  'd8': DEFAULT_ROOM_BOUNDS['Cafeteria'],
+  'D6': DEFAULT_ROOM_BOUNDS['Meeting Room'],
+  'D8': DEFAULT_ROOM_BOUNDS['Cafeteria']
 };
 
 export function useSimulation(mode: 'real' | 'demo' | null) {
@@ -421,8 +458,8 @@ const [dynamicZones, setDynamicZones] = useState<Record<string, { x: number; y: 
 
              return nextPeople;
            });
-         } catch (e) {
-           console.error('Failed to sync realtime tags', e);
+         } catch (e: any) {
+           console.warn('Realtime tag sync warning:', e?.message || e);
          }
        };
 

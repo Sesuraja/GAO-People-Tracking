@@ -27,7 +27,7 @@ import SettingsTab from './components/SettingsTab';
 import ProfileModal from './components/ProfileModal';
 import Login from './components/Login';
 import { startGaoSync, stopGaoSync } from './lib/gaoSyncService';
-import { auth, db, signOut } from './lib/firebase';
+import { auth, db, signOut, onAuthStateChanged } from './lib/firebase';
 import { doc, getDoc, setDoc } from './lib/db';
 
 import LocationsTab from './components/LocationsTab';
@@ -80,6 +80,17 @@ export default function App() {
       localStorage.removeItem('gao_app_mode');
     }
   };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        if (!localStorage.getItem('gao_app_mode')) {
+          changeMode('real');
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     fetch('/api/mongodb/status')

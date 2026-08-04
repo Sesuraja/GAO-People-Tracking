@@ -62,6 +62,7 @@ export default function SettingsTab() {
 
   // MongoDB Connection States
   const [mongoUri, setMongoUri] = useState("");
+  const [showMongoPassword, setShowMongoPassword] = useState(false);
   const [mongoStatus, setMongoStatus] = useState({
     connected: false,
     connectionString: "",
@@ -676,6 +677,7 @@ export default function SettingsTab() {
         success: true,
         msg: "Removed MongoDB URI. Reverting all tabs to default database.",
       });
+      window.dispatchEvent(new Event('mongo-config-updated'));
       setTimeout(() => {
         window.location.reload();
       }, 1000);
@@ -695,11 +697,12 @@ export default function SettingsTab() {
         setMongoStatus({ connected: true, connectionString: mongoUri });
         setMongoTestResult({
           success: true,
-          msg: "MongoDB connected and saved! Injecting configuration...",
+          msg: "MongoDB connected and saved! Persisted to local storage and active server session.",
         });
+        window.dispatchEvent(new Event('mongo-config-updated'));
         setTimeout(() => {
           window.location.reload();
-        }, 1500);
+        }, 1200);
       } else {
         setMongoTestResult({
           success: false,
@@ -1048,56 +1051,98 @@ export default function SettingsTab() {
 
               <div className="bg-white border border-slate-200 shadow-sm rounded-xl overflow-hidden divide-y divide-slate-100">
                 <div className="p-6">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    MongoDB Cloud Connection URI
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="mongodb+srv://user:password@cluster.mongodb.net/dbname?retryWrites=true&w=majority"
-                    value={mongoUri}
-                    onChange={(e) => setMongoUri(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:border-[#007BC4] focus:ring-1 focus:ring-[#007BC4] outline-none transition font-mono text-sm"
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-bold text-slate-800">
+                      MongoDB Cloud Connection URI (MONGODB_URI)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setMongoUri("mongodb+srv://sigmundtd_db_user:Jesuraja123%40@cluster0.lxd6qba.mongodb.net/gao_rfid")}
+                      className="text-xs font-bold text-[#007BC4] hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      Use Default GAO RFID Cluster
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showMongoPassword ? "text" : "password"}
+                      placeholder="mongodb+srv://sigmundtd_db_user:<password>@cluster0.lxd6qba.mongodb.net/gao_rfid"
+                      value={mongoUri}
+                      onChange={(e) => setMongoUri(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-10 py-2.5 text-slate-900 focus:border-[#007BC4] focus:ring-2 focus:ring-[#007BC4]/20 outline-none transition font-mono text-sm shadow-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMongoPassword(!showMongoPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+                      title={showMongoPassword ? "Hide connection password" : "Show connection password"}
+                    >
+                      {showMongoPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+
                   {mongoTestResult && (
                     <div
-                      className={`mt-3 p-3 rounded-lg text-xs font-mono border text-left ${mongoTestResult.success ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-red-50 text-red-800 border-red-200"}`}
+                      className={`mt-3 p-3.5 rounded-lg text-xs font-mono border text-left flex items-start gap-2 ${
+                        mongoTestResult.success 
+                          ? "bg-emerald-50 text-emerald-900 border-emerald-200" 
+                          : "bg-rose-50 text-rose-900 border-rose-200"
+                      }`}
                     >
-                      {mongoTestResult.success ? "✓ SUCCESS: " : "✗ ERROR: "}{" "}
-                      {mongoTestResult.msg}
+                      {mongoTestResult.success ? (
+                        <span className="text-emerald-600 font-bold shrink-0">✓ SUCCESS:</span>
+                      ) : (
+                        <span className="text-rose-600 font-bold shrink-0">✗ DIAGNOSTIC ALERT:</span>
+                      )}
+                      <span className="break-words leading-relaxed">{mongoTestResult.msg}</span>
                     </div>
                   )}
-                  <div className="mt-3 flex gap-2">
+
+                  <div className="mt-4 flex flex-wrap gap-2.5 items-center">
                     <button
                       type="button"
                       onClick={handleTestMongo}
                       disabled={testingMongo}
-                      className="px-3 py-1.5 border border-slate-200 rounded text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+                      className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
                     >
-                      {testingMongo ? "Testing..." : "Test MongoDB Connection"}
+                      <Database className="w-3.5 h-3.5 text-slate-500" />
+                      {testingMongo ? "Validating Connection..." : "Test Connection"}
                     </button>
                     <button
                       type="button"
                       onClick={handleSaveMongo}
                       disabled={savingMongo}
-                      className="px-3 py-1.5 bg-[#007BC4] hover:bg-blue-700 text-white rounded text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
+                      className="px-4 py-2 bg-[#007BC4] hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                     >
-                      {savingMongo ? "Saving..." : "Save & Connect MongoDB"}
+                      <Save className="w-3.5 h-3.5" />
+                      {savingMongo ? "Saving & Connecting..." : "Save MONGODB_URI"}
                     </button>
                   </div>
-                  <p className="text-xs text-emerald-600 mt-2 font-bold flex items-center gap-1.5">
-                    <span className="relative flex h-2 w-2">
-                      <span
-                        className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isMongoActive() ? "bg-emerald-400" : "bg-rose-400"}`}
-                      ></span>
-                      <span
-                        className={`relative inline-flex rounded-full h-2 w-2 ${isMongoActive() ? "bg-emerald-500" : "bg-rose-500"}`}
-                      ></span>
-                    </span>
-                    Active DB status:{" "}
-                    {isMongoActive()
-                      ? "Direct MongoDB persistence is active"
-                      : "MongoDB not set. Defaulting to Cloud Firestore."}
-                  </p>
+
+                  <div className="mt-3.5 p-3 bg-slate-50 border border-slate-200/80 rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span
+                          className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                            isMongoActive() ? "bg-emerald-400" : "bg-amber-400"
+                          }`}
+                        ></span>
+                        <span
+                          className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                            isMongoActive() ? "bg-emerald-500" : "bg-amber-500"
+                          }`}
+                        ></span>
+                      </span>
+                      <span className="text-xs font-bold text-slate-700">
+                        Active Persistence Mode:
+                      </span>
+                      <span className="text-xs font-mono text-slate-600 font-semibold">
+                        {isMongoActive()
+                          ? "MongoDB Cluster Proxy (/api/data/*)"
+                          : "Cloud Firestore Default"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
                 <div className="p-6">
                   <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center justify-between">

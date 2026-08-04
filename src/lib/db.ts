@@ -1,39 +1,111 @@
-// Backend Database Client API Mapping for Server-Side Storage & Fetching
+import { 
+  collection as fbCollection, 
+  doc as fbDoc, 
+  setDoc as fbSetDoc, 
+  addDoc as fbAddDoc, 
+  getDoc as fbGetDoc, 
+  getDocs as fbGetDocs, 
+  updateDoc as fbUpdateDoc, 
+  deleteDoc as fbDeleteDoc, 
+  query as fbQuery, 
+  orderBy as fbOrderBy, 
+  limit as fbLimit, 
+  serverTimestamp as fbServerTimestamp, 
+  onSnapshot as fbOnSnapshot, 
+  getCountFromServer as fbGetCountFromServer 
+} from 'firebase/firestore';
+import { db as firebaseDb } from './firebase';
+
+const DEFAULT_MONGO_URI = "mongodb+srv://sigmundtd_db_user:Jesuraja123%40@cluster0.lxd6qba.mongodb.net/gao_rfid";
+
+// Ensure default MongoDB connection string is saved in localStorage if not set
+if (typeof window !== 'undefined') {
+  if (!localStorage.getItem("gao_mongodb_uri") && localStorage.getItem("gao_mongodb_uri") !== "none") {
+    localStorage.setItem("gao_mongodb_uri", DEFAULT_MONGO_URI);
+  }
+}
 
 export function isMongoActive(): boolean {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem("gao_mongodb_uri");
+    if (saved === "none" || saved === "false") {
+      return false;
+    }
+  }
   return true;
 }
 
-export const db = {}; // Keeps type compatibility
+export const db = firebaseDb;
 
 export function serverTimestamp() {
-  return new Date().toISOString();
+  if (isMongoActive()) {
+    return new Date().toISOString();
+  }
+  try {
+    return fbServerTimestamp();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+function getRefInfo(ref: any): { colName: string; docId?: string } {
+  if (!ref) return { colName: 'unknown' };
+  if (typeof ref === 'string') return { colName: ref };
+  if (ref.col) return { colName: ref.col, docId: ref.id };
+  if (ref.path) {
+    const parts = ref.path.split('/').filter(Boolean);
+    if (parts.length === 1) return { colName: parts[0] };
+    if (parts.length >= 2) return { colName: parts[0], docId: parts[parts.length - 1] };
+  }
+  return { colName: ref.id || 'unknown' };
 }
 
 export function collection(dbInstance: any, colName: string): any {
-  return { type: 'collection', path: colName };
+  if (isMongoActive()) {
+    return { type: 'collection', path: colName };
+  }
+  const targetDb = (dbInstance && Object.keys(dbInstance).length > 0) ? dbInstance : firebaseDb;
+  return fbCollection(targetDb, colName);
 }
 
 export function doc(dbInstanceOrColRef: any, colNameOrId: string, maybeId?: string): any {
-  if (typeof dbInstanceOrColRef === 'object' && dbInstanceOrColRef.type === 'collection') {
-    return { type: 'doc', col: dbInstanceOrColRef.path, id: colNameOrId };
+  if (isMongoActive()) {
+    if (maybeId) return { type: 'doc', col: colNameOrId, id: maybeId };
+    if (typeof dbInstanceOrColRef === 'string') return { type: 'doc', col: dbInstanceOrColRef, id: colNameOrId };
+    if (dbInstanceOrColRef?.path) return { type: 'doc', col: dbInstanceOrColRef.path, id: colNameOrId };
+    return { type: 'doc', col: colNameOrId, id: maybeId };
   }
-  return { type: 'doc', col: dbInstanceOrColRef, id: colNameOrId };
+  if (maybeId) {
+    const targetDb = (dbInstanceOrColRef && Object.keys(dbInstanceOrColRef).length > 0) ? dbInstanceOrColRef : firebaseDb;
+    return fbDoc(targetDb, colNameOrId, maybeId);
+  }
+  if (typeof dbInstanceOrColRef === 'string') {
+    return fbDoc(firebaseDb, dbInstanceOrColRef, colNameOrId);
+  }
+  return fbDoc(dbInstanceOrColRef, colNameOrId);
 }
 
 export function query(colRef: any, ...constraints: any[]): any {
-  return colRef;
+  if (isMongoActive()) {
+    return colRef;
+  }
+  return fbQuery(colRef, ...constraints);
 }
 
 export function orderBy(field: string, direction?: 'asc' | 'desc') {
-  return { type: 'orderBy', field, direction: direction || 'asc' };
+  if (isMongoActive()) {
+    return { type: 'orderBy', field, direction: direction || 'asc' };
+  }
+  return fbOrderBy(field, direction || 'asc');
 }
 
 export function limit(value: number) {
-  return { type: 'limit', value };
+  if (isMongoActive()) {
+    return { type: 'limit', value };
+  }
+  return fbLimit(value);
 }
 
-// Convert JSON objects to firestore-like document format with .toDate() support
 function createMockDoc(data: any) {
   if (!data) return { id: 'unknown', exists: () => false, data: () => null };
   const idValue = data.id || data._id || 'unknown';
@@ -41,19 +113,26 @@ function createMockDoc(data: any) {
   const wrappedData = { ...data };
   Object.keys(wrappedData).forEach(key => {
     const val = wrappedData[key];
-    if (val && typeof val === 'string' && (key.toLowerCase().includes('time') || key.toLowerCase().includes('date') || key === 'createdAt' || key === 'updatedAt' || key === 'timestamp')) {
-      const dateObj = new Date(val);
-      if (!isNaN(dateObj.getTime())) {
+    // Strictly convert timestamp/createdAt/updatedAt fields to Firestore-compatible Timestamp objects if needed
+    if (val && (key === 'timestamp' || key === 'createdAt' || key === 'updatedAt')) {
+      if (typeof val === 'string') {
+        const dateObj = new Date(val);
+        if (!isNaN(dateObj.getTime())) {
+          wrappedData[key] = {
+            toDate: () => dateObj,
+            seconds: Math.floor(dateObj.getTime() / 1000),
+            nanoseconds: (dateObj.getTime() % 1000) * 1e6,
+            toString: () => val,
+            valueOf: () => dateObj.getTime()
+          };
+        }
+      } else if (val instanceof Date) {
         wrappedData[key] = {
-          toDate: () => dateObj,
-          seconds: Math.floor(dateObj.getTime() / 1000),
-          nanoseconds: (dateObj.getTime() % 1000) * 1e6,
-          toString: () => val,
-          valueOf: () => dateObj.getTime(),
-          [Symbol.toPrimitive](hint: string) {
-            if (hint === 'number') return dateObj.getTime();
-            return val;
-          }
+          toDate: () => val,
+          seconds: Math.floor(val.getTime() / 1000),
+          nanoseconds: (val.getTime() % 1000) * 1e6,
+          toString: () => val.toISOString(),
+          valueOf: () => val.getTime()
         };
       }
     }
@@ -68,7 +147,7 @@ function createMockDoc(data: any) {
 }
 
 function createMockSnapshot(docsData: any[]) {
-  const mockDocs = docsData.map(d => createMockDoc(d));
+  const mockDocs = (docsData || []).map(d => createMockDoc(d));
   return {
     docs: mockDocs,
     empty: mockDocs.length === 0,
@@ -79,161 +158,158 @@ function createMockSnapshot(docsData: any[]) {
   };
 }
 
-// --- BACKEND API DATABASE EXPORTS ---
-
 export async function setDoc(docRef: any, data: any, options?: any): Promise<void> {
-  const colName = docRef.col;
-  const docId = docRef.id;
-
-  try {
-    const response = await fetch(`/api/data/${colName}/${docId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-    if (!response.ok) {
-      throw new Error(`Server returned HTTP ${response.status}`);
+  if (isMongoActive()) {
+    const { colName, docId } = getRefInfo(docRef);
+    if (!colName || !docId) return;
+    try {
+      const response = await fetch(`/api/data/${colName}/${docId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } catch (err) {
+      console.warn(`setDoc MongoDB API error for ${colName}/${docId}:`, err);
     }
-  } catch (err: any) {
-    console.warn(`setDoc API fallback for ${colName}/${docId}:`, err);
-    // Local fallback buffer if offline
-    const key = `gao_cache_${colName}`;
-    const cached = JSON.parse(localStorage.getItem(key) || '[]');
-    const idx = cached.findIndex((x: any) => x.id === docId);
-    if (idx > -1) cached[idx] = { ...cached[idx], ...data, id: docId };
-    else cached.push({ ...data, id: docId });
-    localStorage.setItem(key, JSON.stringify(cached));
+    return;
   }
+  if (options) {
+    return fbSetDoc(docRef, data, options);
+  }
+  return fbSetDoc(docRef, data);
 }
 
 export async function addDoc(colRef: any, data: any): Promise<any> {
-  const colName = colRef.path;
-
-  try {
-    const response = await fetch(`/api/data/${colName}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-    if (!response.ok) {
-      throw new Error(`Server returned HTTP ${response.status}`);
+  if (isMongoActive()) {
+    const { colName } = getRefInfo(colRef);
+    try {
+      const response = await fetch(`/api/data/${colName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      return { id: result.doc.id, ...createMockDoc(result.doc) };
+    } catch (err) {
+      console.warn(`addDoc MongoDB API error for ${colName}:`, err);
+      const newId = data.id || Math.random().toString(36).substring(2, 11);
+      return { id: newId, ...createMockDoc({ id: newId, ...data }) };
     }
-    const result = await response.json();
-    return { id: result.doc.id, ...createMockDoc(result.doc) };
-  } catch (err: any) {
-    console.warn(`addDoc API fallback for ${colName}:`, err);
-    const newId = data.id || Math.random().toString(36).substring(2, 11);
-    const newDoc = { id: newId, ...data };
-    return { id: newId, ...createMockDoc(newDoc) };
   }
+  return fbAddDoc(colRef, data);
 }
 
 export async function getDoc(docRef: any): Promise<any> {
-  const colName = docRef.col;
-  const docId = docRef.id;
-
-  try {
-    const response = await fetch(`/api/data/${colName}/${docId}`);
-    if (response.ok) {
-      const result = await response.json();
-      if (result && result.doc) {
-        return createMockDoc(result.doc);
+  if (isMongoActive()) {
+    const { colName, docId } = getRefInfo(docRef);
+    try {
+      const response = await fetch(`/api/data/${colName}/${docId}`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result && result.doc) return createMockDoc(result.doc);
       }
+    } catch (err) {
+      console.warn(`getDoc MongoDB API error for ${colName}/${docId}:`, err);
     }
-  } catch (err) {
-    console.warn(`getDoc API error for ${colName}/${docId}:`, err);
+    return { id: docId || 'unknown', exists: () => false, data: () => null };
   }
-  return { id: docId, exists: () => false, data: () => null };
+  return fbGetDoc(docRef);
 }
 
 export async function getDocs(queryRef: any): Promise<any> {
-  const colName = queryRef.path;
-
-  try {
-    const response = await fetch(`/api/data/${colName}`);
-    if (response.ok) {
-      const result = await response.json();
-      return createMockSnapshot(result.data || []);
+  if (isMongoActive()) {
+    const { colName } = getRefInfo(queryRef);
+    try {
+      const response = await fetch(`/api/data/${colName}`);
+      if (response.ok) {
+        const result = await response.json();
+        return createMockSnapshot(result.data || []);
+      }
+    } catch (err) {
+      console.warn(`getDocs MongoDB API error for ${colName}:`, err);
     }
-  } catch (err) {
-    console.warn(`getDocs API error for ${colName}:`, err);
+    return createMockSnapshot([]);
   }
-  return createMockSnapshot([]);
+  return fbGetDocs(queryRef);
 }
 
 export async function updateDoc(docRef: any, data: any): Promise<void> {
-  return setDoc(docRef, data, { merge: true });
+  if (isMongoActive()) {
+    return setDoc(docRef, data, { merge: true });
+  }
+  return fbUpdateDoc(docRef, data);
 }
 
 export async function deleteDoc(docRef: any): Promise<void> {
-  const colName = docRef.col;
-  const docId = docRef.id;
-
-  try {
-    const response = await fetch(`/api/data/${colName}/${docId}`, {
-      method: 'DELETE'
-    });
-    if (!response.ok) {
-      throw new Error(`Server returned HTTP ${response.status}`);
+  if (isMongoActive()) {
+    const { colName, docId } = getRefInfo(docRef);
+    try {
+      await fetch(`/api/data/${colName}/${docId}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn(`deleteDoc MongoDB API error for ${colName}/${docId}:`, err);
     }
-  } catch (err: any) {
-    console.warn(`deleteDoc API error for ${colName}/${docId}:`, err);
+    return;
   }
+  return fbDeleteDoc(docRef);
 }
 
 export async function getCountFromServer(queryRef: any): Promise<any> {
-  const colName = queryRef.path;
-
-  try {
-    const response = await fetch(`/api/data/${colName}`);
-    if (response.ok) {
-      const result = await response.json();
-      const count = (result.data || []).length;
-      return { data: () => ({ count }) };
-    }
-  } catch (err) {}
-  return { data: () => ({ count: 0 }) };
+  if (isMongoActive()) {
+    const { colName } = getRefInfo(queryRef);
+    try {
+      const response = await fetch(`/api/data/${colName}`);
+      if (response.ok) {
+        const result = await response.json();
+        const count = (result.data || []).length;
+        return { data: () => ({ count }) };
+      }
+    } catch (err) {}
+    return { data: () => ({ count: 0 }) };
+  }
+  return fbGetCountFromServer(queryRef);
 }
 
 export function onSnapshot(ref: any, callback: (snapshot: any) => void, errorCallback?: (error: any) => void): () => void {
-  let active = true;
-  const colName = ref.col || ref.path;
-  const isDoc = !!ref.col;
-  const docId = ref.id;
+  if (isMongoActive()) {
+    let active = true;
+    const { colName, docId } = getRefInfo(ref);
 
-  const poll = async () => {
-    if (!active) return;
-    try {
-      if (isDoc) {
-        const response = await fetch(`/api/data/${colName}/${docId}`);
-        if (response.ok && active) {
-          const result = await response.json();
-          callback(createMockDoc(result.doc));
+    const poll = async () => {
+      if (!active) return;
+      try {
+        if (docId) {
+          const response = await fetch(`/api/data/${colName}/${docId}`);
+          if (response.ok && active) {
+            const result = await response.json();
+            callback(createMockDoc(result.doc));
+          }
+        } else {
+          const response = await fetch(`/api/data/${colName}`);
+          if (response.ok && active) {
+            const result = await response.json();
+            callback(createMockSnapshot(result.data || []));
+          }
         }
-      } else {
-        const response = await fetch(`/api/data/${colName}`);
-        if (response.ok && active) {
-          const result = await response.json();
-          callback(createMockSnapshot(result.data || []));
+      } catch (err) {
+        if (errorCallback) {
+          try { errorCallback(err); } catch {}
         }
       }
-    } catch (err) {
-      if (errorCallback) {
-        try { errorCallback(err); } catch {}
-      }
-    }
-  };
+    };
 
-  poll();
-  const interval = setInterval(poll, 2500);
+    poll();
+    const interval = setInterval(poll, 3000);
 
-  return () => {
-    active = false;
-    clearInterval(interval);
-  };
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }
+
+  return fbOnSnapshot(ref, callback, errorCallback || ((err) => console.warn('Snapshot listener error:', err)));
 }
+
+
 

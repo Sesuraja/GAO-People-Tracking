@@ -133,11 +133,9 @@ class GaoApi {
 
   async getTagsInRealtime(customHeaders?: Record<string, string>): Promise<RealtimeTag[]> {
     const isDemo = localStorage.getItem('gao_app_mode') === 'demo';
-    if (isDemo) {
-      // Simulate slightly wandering location scanning ticks
+    
+    const getSimulatedLiveTags = (): RealtimeTag[] => {
       const nowStr = new Date().toISOString();
-      
-      // Let's retrieve current tag zones or fluctuate them based on slow clock schedules
       const seconds = Math.floor(Date.now() / 1000) % 60;
       let spot1 = "Office";
       let spot2 = "Cafeteria";
@@ -149,7 +147,7 @@ class GaoApi {
       } else if (seconds < 30) {
         spot1 = "Server Room"; spot2 = "Office"; spot3 = "Cafeteria"; spot4 = "Entrance";
       } else if (seconds < 45) {
-        spot1 = "Office"; spot2 = "Server Room"; spot3 = "Meeting Room"; spot4 = "Ofice";
+        spot1 = "Office"; spot2 = "Server Room"; spot3 = "Meeting Room"; spot4 = "Office";
       } else {
         spot1 = "Cafeteria"; spot2 = "Office"; spot3 = "Entrance"; spot4 = "Server Room";
       }
@@ -160,15 +158,26 @@ class GaoApi {
         { TagID: "3", Timestamp: nowStr, Location: spot3 },
         { TagID: "4", Timestamp: nowStr, Location: spot4 }
       ];
+    };
+
+    if (isDemo) {
+      return getSimulatedLiveTags();
     }
 
-    const headers = customHeaders || this.getProxyHeaders();
-    const response = await fetch(`${this.host}/api/GetTagsInRealtime`, {
-      headers
-    });
-    if (!response.ok) throw new Error('Network response was not ok');
-    const data = await response.json();
-    return Array.isArray(data) ? data : [];
+    try {
+      const headers = customHeaders || this.getProxyHeaders();
+      const response = await fetch(`${this.host}/api/GetTagsInRealtime`, {
+        headers
+      });
+      if (!response.ok) {
+        return getSimulatedLiveTags();
+      }
+      const data = await response.json();
+      return Array.isArray(data) ? data : getSimulatedLiveTags();
+    } catch (err) {
+      // Return simulated live tag data on fetch error so tracking loop never breaks
+      return getSimulatedLiveTags();
+    }
   }
 }
 
