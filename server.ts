@@ -301,6 +301,21 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
+  // Auto-connect MongoDB on incoming requests if URI is present and DB is not connected
+  app.use(async (req, res, next) => {
+    if (!mongoDb) {
+      const uriToUse = process.env.MONGODB_URI || initialMongoUri;
+      if (uriToUse) {
+        try {
+          await initMongo(uriToUse);
+        } catch (err) {
+          // Continue request even if mongo fails, fallback store will handle
+        }
+      }
+    }
+    next();
+  });
+
   // Data Store Status & Stats API
   app.get(['/api/mongodb/status', '/api/data/status'], async (req, res) => {
     const store = readServerDataStore();
@@ -1118,6 +1133,9 @@ async function startServer() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
+
+  return app;
 }
 
-startServer();
+export const appPromise = startServer();
+export default appPromise;
