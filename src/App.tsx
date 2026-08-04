@@ -94,7 +94,11 @@ export default function App() {
 
   useEffect(() => {
     fetch('/api/mongodb/status')
-      .then(res => res.ok ? res.json() : null)
+      .then(async res => {
+        if (!res.ok) return null;
+        const text = await res.text();
+        try { return JSON.parse(text); } catch { return null; }
+      })
       .then(data => {
         if (data && data.connected) {
           const currentUri = localStorage.getItem('gao_mongodb_uri');

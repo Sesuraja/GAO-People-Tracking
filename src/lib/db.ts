@@ -180,17 +180,26 @@ export async function setDoc(docRef: any, data: any, options?: any): Promise<voi
   return fbSetDoc(docRef, data);
 }
 
+async function safeJsonFetch(url: string, options?: RequestInit): Promise<any> {
+  const response = await fetch(url, options);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error(`Invalid JSON output: ${text.slice(0, 100)}`);
+  }
+}
+
 export async function addDoc(colRef: any, data: any): Promise<any> {
   if (isMongoActive()) {
     const { colName } = getRefInfo(colRef);
     try {
-      const response = await fetch(`/api/data/${colName}`, {
+      const result = await safeJsonFetch(`/api/data/${colName}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = await response.json();
       return { id: result.doc.id, ...createMockDoc(result.doc) };
     } catch (err) {
       console.warn(`addDoc MongoDB API error for ${colName}:`, err);
@@ -205,11 +214,8 @@ export async function getDoc(docRef: any): Promise<any> {
   if (isMongoActive()) {
     const { colName, docId } = getRefInfo(docRef);
     try {
-      const response = await fetch(`/api/data/${colName}/${docId}`);
-      if (response.ok) {
-        const result = await response.json();
-        if (result && result.doc) return createMockDoc(result.doc);
-      }
+      const result = await safeJsonFetch(`/api/data/${colName}/${docId}`);
+      if (result && result.doc) return createMockDoc(result.doc);
     } catch (err) {
       console.warn(`getDoc MongoDB API error for ${colName}/${docId}:`, err);
     }
@@ -222,11 +228,8 @@ export async function getDocs(queryRef: any): Promise<any> {
   if (isMongoActive()) {
     const { colName } = getRefInfo(queryRef);
     try {
-      const response = await fetch(`/api/data/${colName}`);
-      if (response.ok) {
-        const result = await response.json();
-        return createMockSnapshot(result.data || []);
-      }
+      const result = await safeJsonFetch(`/api/data/${colName}`);
+      return createMockSnapshot(result.data || []);
     } catch (err) {
       console.warn(`getDocs MongoDB API error for ${colName}:`, err);
     }
@@ -259,12 +262,9 @@ export async function getCountFromServer(queryRef: any): Promise<any> {
   if (isMongoActive()) {
     const { colName } = getRefInfo(queryRef);
     try {
-      const response = await fetch(`/api/data/${colName}`);
-      if (response.ok) {
-        const result = await response.json();
-        const count = (result.data || []).length;
-        return { data: () => ({ count }) };
-      }
+      const result = await safeJsonFetch(`/api/data/${colName}`);
+      const count = (result.data || []).length;
+      return { data: () => ({ count }) };
     } catch (err) {}
     return { data: () => ({ count: 0 }) };
   }
@@ -280,15 +280,13 @@ export function onSnapshot(ref: any, callback: (snapshot: any) => void, errorCal
       if (!active) return;
       try {
         if (docId) {
-          const response = await fetch(`/api/data/${colName}/${docId}`);
-          if (response.ok && active) {
-            const result = await response.json();
+          const result = await safeJsonFetch(`/api/data/${colName}/${docId}`);
+          if (active && result) {
             callback(createMockDoc(result.doc));
           }
         } else {
-          const response = await fetch(`/api/data/${colName}`);
-          if (response.ok && active) {
-            const result = await response.json();
+          const result = await safeJsonFetch(`/api/data/${colName}`);
+          if (active && result) {
             callback(createMockSnapshot(result.data || []));
           }
         }

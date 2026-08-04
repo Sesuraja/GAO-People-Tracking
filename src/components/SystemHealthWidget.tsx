@@ -104,8 +104,10 @@ export default function SystemHealthWidget() {
     try {
       const res = await fetch('/api/mongodb/status');
       mongoLatency = Math.round(performance.now() - mongoStart);
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch {}
       if (res.ok) {
-        const data = await res.json();
         mongoConnected = !!data.connected;
         mongoConnStr = data.connectionString || 'None Configured';
         mongoEngine = data.engine || (mongoConnected ? 'MongoDB Cluster' : 'Server Data Engine');
@@ -113,7 +115,7 @@ export default function SystemHealthWidget() {
         totalRecords = data.totalRecords || 0;
         mongoError = data.lastError || (mongoConnected ? null : 'MongoDB is not configured or server selection timed out');
       } else {
-        mongoError = `Backend status API returned HTTP ${res.status}`;
+        mongoError = data.error || `Backend status API returned HTTP ${res.status}`;
       }
     } catch (err: any) {
       mongoLatency = Math.round(performance.now() - mongoStart);

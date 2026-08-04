@@ -624,7 +624,11 @@ export default function SettingsTab() {
     const savedMongoUri = localStorage.getItem("gao_mongodb_uri") || "";
     setMongoUri(savedMongoUri);
     fetch("/api/mongodb/status")
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then(async (res) => {
+        if (!res.ok) return Promise.reject();
+        const text = await res.text();
+        try { return JSON.parse(text); } catch { return Promise.reject(); }
+      })
       .then((status) => setMongoStatus(status))
       .catch((e) =>
         console.warn("Could not lead MongoDB backend status on mount:", e),
