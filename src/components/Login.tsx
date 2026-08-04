@@ -112,7 +112,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             <Shield className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight">GAO People Tracking</h1>
-          <p className="text-xs text-sky-100 mt-1 font-medium">Real-Time RFID & Firebase Cloud Auth</p>
+          <p className="text-xs text-sky-100 mt-1 font-medium">Real-Time RFID System</p>
         </div>
 
         {/* Tab Switcher */}
@@ -235,12 +235,12 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               ) : isSignUp ? (
                 <>
                   <UserPlus className="w-5 h-5" />
-                  Create Firebase Account
+                  Create GAO Account
                 </>
               ) : (
                 <>
                   <LogIn className="w-5 h-5" />
-                  Sign In with Firebase
+                  Sign In with GAO
                 </>
               )}
             </button>
