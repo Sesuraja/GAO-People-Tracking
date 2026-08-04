@@ -330,9 +330,12 @@ if (initialMongoUri) {
   initMongo(initialMongoUri).catch(err => console.error('Initial MongoDB activation failed:', err));
 }
 
-async function startServer() {
+// Builds and returns the Express app with every /api route registered, but
+// does NOT start a listener and does NOT attach static/SPA serving. This is
+// what gets reused by the Vercel serverless entry point (api/index.ts) —
+// Vercel calls this app directly per-request instead of app.listen().
+export async function createApp(): Promise<express.Express> {
   const app = express();
-  const PORT = 3000;
 
   app.use(cors());
   app.use(express.json());
@@ -1139,7 +1142,20 @@ async function startServer() {
   });
 
 
-  // Vite middleware for development
+  return app;
+}
+
+// Standalone mode: used for local dev (`npm run dev`) and for host platforms
+// that expect a single long-running process listening on a port, like
+// Cloud Run. This adds the Vite dev middleware or the built static SPA on
+// top of createApp(), then starts listening.
+// NOT used on Vercel - Vercel serves the static frontend from /dist via its
+// own CDN/routing and calls api/index.ts as a serverless function per
+// request instead, so there's nothing here for it to run.
+async function startLocalServer() {
+  const app = await createApp();
+  const PORT = Number(process.env.PORT) || 3000;
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1159,4 +1175,6 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startLocalServer();
+}
