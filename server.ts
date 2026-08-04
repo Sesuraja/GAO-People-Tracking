@@ -15,8 +15,13 @@ const ai = new GoogleGenAI({
 });
 
 // Configure MongoDB client
-const MONGODB_CONFIG_FILE = path.resolve(process.cwd(), 'mongodb-config.json');
-const SERVER_DATA_FILE = path.resolve(process.cwd(), 'server-data-store.json');
+const isVercel = !!(process.env.VERCEL || process.env.NOW_BUILDER);
+const MONGODB_CONFIG_FILE = isVercel
+  ? path.join('/tmp', 'mongodb-config.json')
+  : path.resolve(process.cwd(), 'mongodb-config.json');
+const SERVER_DATA_FILE = isVercel
+  ? path.join('/tmp', 'server-data-store.json')
+  : path.resolve(process.cwd(), 'server-data-store.json');
 
 let mongoClient: MongoClient | null = null;
 let mongoDb: Db | null = null;
@@ -294,9 +299,8 @@ if (initialMongoUri) {
   initMongo(initialMongoUri).catch(err => console.error('Initial MongoDB activation failed:', err));
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = Number(process.env.PORT) || 3000;
 
   app.use(cors());
   app.use(express.json());
@@ -1128,27 +1132,28 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+  // Vite middleware for local development / container runtime (disabled on Vercel)
+  if (!process.env.VERCEL) {
+    if (process.env.NODE_ENV !== "production") {
+      createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      }).then(vite => {
+        app.use(vite.middlewares);
+      }).catch(err => {
+        console.error("Failed to start Vite dev server middleware:", err);
+      });
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
-  });
-
-  return app;
-}
-
-export const appPromise = startServer();
-export default appPromise;
+export default app;
