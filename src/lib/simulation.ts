@@ -263,9 +263,8 @@ const [dynamicZones, setDynamicZones] = useState<Record<string, { x: number; y: 
 
              Object.values(latestTagInfo).forEach(tag => {
                 let p = nextPeople.find(x => x.id === tag.TagID);
-                let targetZone = tag.Location;
-                
-                if (!dynamicZones[targetZone]) targetZone = 'Entrance'; 
+                let targetZone = normalizeZoneName(tag.Location);
+                const rect = getZoneRect(targetZone, dynamicZones);
                 
                 const registered = registeredPeopleRef.current[tag.TagID];
                 const pName = registered ? registered.name : `Tag ${tag.TagID.substring(0, 6).toUpperCase()}`;
@@ -279,8 +278,8 @@ const [dynamicZones, setDynamicZones] = useState<Record<string, { x: number; y: 
                       currentZone: targetZone,
                       presenceState: 'IDLE',
                       dwellTime: 0,
-                      x: dynamicZones[targetZone].x + dynamicZones[targetZone].width / 2,
-                      y: dynamicZones[targetZone].y + dynamicZones[targetZone].height / 2,
+                      x: rect.x + rect.width / 2,
+                      y: rect.y + rect.height / 2,
                       lastSeen: new Date(tag.Timestamp + "Z"),
                       trail: []
                     };
@@ -346,8 +345,8 @@ const [dynamicZones, setDynamicZones] = useState<Record<string, { x: number; y: 
                         p.presenceState = 'MOVING';
                         
                         // Move avatar to center of new zone
-                        p.x = dynamicZones[targetZone].x + dynamicZones[targetZone].width / 2;
-                        p.y = dynamicZones[targetZone].y + dynamicZones[targetZone].height / 2;
+                        p.x = rect.x + rect.width / 2;
+                        p.y = rect.y + rect.height / 2;
                         
                         // Store real history log
                         addDoc(collection(db, 'tag_history'), {
@@ -423,7 +422,7 @@ const [dynamicZones, setDynamicZones] = useState<Record<string, { x: number; y: 
                p.trail.push({ x: p.x, y: p.y });
                if (p.trail.length > 15) p.trail.shift();
 
-               const zoneRect = dynamicZones[p.currentZone] || dynamicZones['Entrance'] || { x: 50, y: 50, width: 2, height: 2 };
+               const zoneRect = getZoneRect(p.currentZone, dynamicZones);
                const targetX = zoneRect.x + Math.random() * zoneRect.width;
                const targetY = zoneRect.y + Math.random() * zoneRect.height;
                

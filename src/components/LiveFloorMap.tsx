@@ -131,7 +131,7 @@ export default function LiveFloorMap({
   }, [selectedZone, people]);
 
   return (
-    <div className="w-full h-full relative bg-transparent overflow-hidden flex flex-col md:flex-row items-stretch justify-center pr-0 md:pr-4">
+    <div className="w-full h-full min-h-[520px] relative bg-transparent overflow-hidden flex flex-col md:flex-row items-stretch justify-center pr-0 md:pr-4">
       
       {/* Control Buttons (Sticky Top-Right) */}
       <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
@@ -153,7 +153,7 @@ export default function LiveFloorMap({
       </div>
 
       {/* Map Container */}
-      <div className="relative flex-1 w-full h-full border border-slate-200 rounded-2xl bg-white z-10 overflow-hidden shadow-sm flex flex-col items-center justify-center p-4">
+      <div className="relative flex-1 w-full h-full min-h-[480px] border border-slate-200 rounded-2xl bg-white z-10 overflow-hidden shadow-sm flex flex-col items-center justify-center p-4">
         
         {/* Render custom architectural floorplan image if uploaded in Locations */}
         {floorplanUrl && (

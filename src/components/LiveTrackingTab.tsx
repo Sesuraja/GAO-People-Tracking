@@ -2,19 +2,76 @@ import React, { useState, useEffect } from 'react';
 import { Person } from '../lib/simulation';
 import LiveFloorMap from './LiveFloorMap';
 import { useGaoRealtime } from '../lib/useGaoApi';
-// Add Search, AlertTriangle, UserCheck to import
-import { Radio, MapPin, Clock, Search, AlertTriangle, UserCheck } from 'lucide-react';
+import { Radio, MapPin, Clock, Search, AlertTriangle, UserCheck, Building2 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { collection, onSnapshot } from '../lib/db';
 import { db } from '../lib/firebase';
 
-export default function LiveTrackingTab({ people, zones, highlightedPersonId, isLoading: mainIsLoading }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, isLoading?: boolean }) {
+const FACILITIES = [
+  {
+    id: 'hq-f1',
+    name: 'Headquarters (Floor 1)',
+    zones: {
+      'Cafeteria': { x: 5, y: 10, width: 30, height: 35 },
+      'Meeting Room': { x: 40, y: 10, width: 28, height: 35 },
+      'Server Room': { x: 72, y: 10, width: 23, height: 35 },
+      'Entrance': { x: 5, y: 55, width: 30, height: 35 },
+      'Office': { x: 40, y: 55, width: 55, height: 35 }
+    }
+  },
+  {
+    id: 'hq-f2',
+    name: 'Headquarters (Floor 2 - Executive)',
+    zones: {
+      'Executive Boardroom': { x: 5, y: 10, width: 42, height: 40 },
+      'Finance & Legal': { x: 50, y: 10, width: 45, height: 40 },
+      'CEO Suite': { x: 5, y: 54, width: 30, height: 38 },
+      'Strategy War Room': { x: 38, y: 54, width: 57, height: 38 }
+    }
+  },
+  {
+    id: 'warehouse',
+    name: 'Warehouse & Logistics Center',
+    zones: {
+      'Loading Dock Alpha': { x: 5, y: 10, width: 30, height: 40 },
+      'High-Bay Storage': { x: 38, y: 10, width: 57, height: 40 },
+      'Packing & Shipping': { x: 5, y: 54, width: 45, height: 38 },
+      'Inventory Control': { x: 53, y: 54, width: 42, height: 38 }
+    }
+  },
+  {
+    id: 'rd-campus',
+    name: 'Secure R&D Tech Campus',
+    zones: {
+      'AI Neural Lab': { x: 5, y: 10, width: 45, height: 40 },
+      'Robotics Arena': { x: 53, y: 10, width: 42, height: 40 },
+      'Quantum Testing': { x: 5, y: 54, width: 35, height: 38 },
+      'Cleanroom Vault': { x: 43, y: 54, width: 52, height: 38 }
+    }
+  },
+  {
+    id: 'datacenter',
+    name: 'Server Datacenter Annex',
+    zones: {
+      'Server Vault A': { x: 5, y: 10, width: 45, height: 40 },
+      'Network Operations Center': { x: 53, y: 10, width: 42, height: 40 },
+      'Power Substation': { x: 5, y: 54, width: 40, height: 38 },
+      'Security Operations': { x: 48, y: 54, width: 47, height: 38 }
+    }
+  }
+];
+
+export default function LiveTrackingTab({ people, zones: defaultZones, highlightedPersonId, isLoading: mainIsLoading }: { people: Person[], zones: Record<string, {x:number, y:number, width:number, height:number}>, highlightedPersonId?: string | null, isLoading?: boolean }) {
   const [selectedPerson, setSelectedPerson] = useState<string | null>(highlightedPersonId || null);
   const [searchQuery, setSearchQuery] = useState('');
   const location = useLocation();
   const focusZone = location.state?.focusZone || null;
   const [floorplanUrl, setFloorplanUrl] = useState<string | null>(null);
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
+  const [activeFacilityId, setActiveFacilityId] = useState('hq-f1');
+
+  const currentFacility = FACILITIES.find(f => f.id === activeFacilityId) || FACILITIES[0];
+  const activeZones = currentFacility.zones;
   
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'floorplans'), (snapshot) => {
@@ -42,12 +99,25 @@ export default function LiveTrackingTab({ people, zones, highlightedPersonId, is
   return (
     <div className="w-full flex flex-col lg:flex-row p-6 gap-6 max-w-7xl mx-auto">
       <div className="flex-1 flex flex-col gap-4 min-h-0">
-        <div className="flex justify-between items-center shrink-0">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-slate-900">Live Facility Map</h2>
             <p className="text-slate-500 font-medium tracking-tight">Real-time personnel location and zone occupancy</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+             <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm">
+                <Building2 className="w-4 h-4 text-[#007BC4]" />
+                <select 
+                  value={activeFacilityId}
+                  onChange={e => setActiveFacilityId(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                >
+                  {FACILITIES.map(fac => (
+                    <option key={fac.id} value={fac.id}>{fac.name}</option>
+                  ))}
+                </select>
+             </div>
+
              <div className="flex bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
                 <div className="pl-3 py-2 text-slate-400">
                    <Search className="w-4 h-4" />
@@ -58,7 +128,7 @@ export default function LiveTrackingTab({ people, zones, highlightedPersonId, is
                    onChange={e => setSearchQuery(e.target.value)}
                    onKeyDown={e => e.key === 'Enter' && handleLocateNow()}
                    placeholder="Search ID/Name..."
-                   className="pl-2 pr-3 py-2 text-sm outline-none w-48 text-slate-700" 
+                   className="pl-2 pr-3 py-2 text-sm outline-none w-36 sm:w-48 text-slate-700" 
                 />
                 <button 
                   onClick={handleLocateNow}
@@ -76,7 +146,7 @@ export default function LiveTrackingTab({ people, zones, highlightedPersonId, is
              </button>
           </div>
         </div>
-        <div className={`flex-1 bg-white rounded-xl border ${isEmergencyMode ? 'border-rose-500 ring-2 ring-rose-200 shadow-rose-100' : 'border-slate-200'} shadow-sm p-4 relative flex flex-col min-h-0 transition-all duration-300`}>
+        <div className={`flex-1 min-h-[560px] bg-white rounded-xl border ${isEmergencyMode ? 'border-rose-500 ring-2 ring-rose-200 shadow-rose-100' : 'border-slate-200'} shadow-sm p-4 relative flex flex-col transition-all duration-300`}>
            {isEmergencyMode && (
              <div className="absolute top-4 left-4 z-50 bg-rose-600 border border-rose-700 shadow-xl rounded-xl p-5 w-80 text-white animate-in zoom-in-95 duration-300">
                 <div className="flex items-center gap-2 mb-3">
@@ -137,7 +207,7 @@ export default function LiveTrackingTab({ people, zones, highlightedPersonId, is
            ) : (
              <LiveFloorMap 
                people={people} 
-               zones={zones} 
+               zones={activeZones} 
                highlightedPersonId={selectedPerson || highlightedPersonId} 
                initialFocusZone={focusZone} 
                floorplanUrl={floorplanUrl} 

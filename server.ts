@@ -22,55 +22,27 @@ let mongoClient: MongoClient | null = null;
 let mongoDb: Db | null = null;
 let activeMongoUri = '';
 let lastMongoError: string | null = null;
-let mongoConnecting = false;
-let mongoRetryTimer: ReturnType<typeof setTimeout> | null = null;
-
-// Cloud Run + free/shared Atlas tiers need a much longer timeout than 5s:
-// paused M0/M2/M5 clusters can take 30-60s to resume on first connection,
-// and Cloud Run's dynamic egress IP means the first attempt after a cold
-// start can also be slow while Atlas's network layer catches up.
-const MONGO_CONNECT_TIMEOUT_MS = 20000;
-const MONGO_RETRY_INTERVAL_MS = 15000;
-
-function scheduleMongoRetry(uri: string) {
-  if (mongoRetryTimer) return; // a retry is already queued
-  mongoRetryTimer = setTimeout(async () => {
-    mongoRetryTimer = null;
-    if (mongoDb) return; // already connected in the meantime
-    console.log('Retrying MongoDB connection...');
-    await initMongo(uri);
-  }, MONGO_RETRY_INTERVAL_MS);
-}
 
 async function initMongo(uri: string): Promise<boolean> {
   if (!uri) return false;
-  if (mongoConnecting) return false; // avoid overlapping connect attempts
   try {
-    if (mongoClient && activeMongoUri === uri && mongoDb) {
+    if (mongoClient && activeMongoUri === uri) {
       lastMongoError = null;
       return true;
     }
-    mongoConnecting = true;
     if (mongoClient) {
       try { await mongoClient.close(); } catch {}
-      mongoClient = null;
-      mongoDb = null;
     }
-    console.log(`Connecting to MongoDB (timeout ${MONGO_CONNECT_TIMEOUT_MS}ms)...`);
-    const client = new MongoClient(uri, {
-      serverSelectionTimeoutMS: MONGO_CONNECT_TIMEOUT_MS,
-      connectTimeoutMS: MONGO_CONNECT_TIMEOUT_MS,
-    });
+    console.log('Connecting to MongoDB...');
+    const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
     await client.connect();
-    // Confirm the cluster actually answers, not just that a socket opened
-    await client.db().admin().ping();
     mongoClient = client;
-
+    
     // Parse database name from connection string or default
     const urlParts = uri.split('/');
     const lastPart = urlParts[urlParts.length - 1];
     const dbName = lastPart.split('?')[0] || 'gao_rfid';
-
+    
     mongoDb = client.db(dbName);
     activeMongoUri = uri;
     lastMongoError = null;
@@ -78,16 +50,8 @@ async function initMongo(uri: string): Promise<boolean> {
     return true;
   } catch (err: any) {
     lastMongoError = err.message || 'Failed to connect to MongoDB cluster';
-    console.error('MongoDB connection error:', lastMongoError);
-    mongoClient = null;
-    mongoDb = null;
-    // Keep trying in the background instead of giving up forever - this is
-    // what fixes "MongoDB never connects" on Cloud Run when the real cause
-    // is a slow-to-resume Atlas cluster or a slow first DNS/SRV lookup.
-    scheduleMongoRetry(uri);
+    console.error('MongoDB connection error:', err);
     return false;
-  } finally {
-    mongoConnecting = false;
   }
 }
 
@@ -330,12 +294,9 @@ if (initialMongoUri) {
   initMongo(initialMongoUri).catch(err => console.error('Initial MongoDB activation failed:', err));
 }
 
-// Builds and returns the Express app with every /api route registered, but
-// does NOT start a listener and does NOT attach static/SPA serving. This is
-// what gets reused by the Vercel serverless entry point (api/index.ts) —
-// Vercel calls this app directly per-request instead of app.listen().
-export async function createApp(): Promise<express.Express> {
+async function startServer() {
   const app = express();
+  const PORT = 3000;
 
   app.use(cors());
   app.use(express.json());
@@ -409,10 +370,7 @@ export async function createApp(): Promise<express.Express> {
       if (!mongodbUri) {
         return res.json({ success: false, error: 'Connection string is empty' });
       }
-      const tempClient = new MongoClient(mongodbUri, {
-        serverSelectionTimeoutMS: MONGO_CONNECT_TIMEOUT_MS,
-        connectTimeoutMS: MONGO_CONNECT_TIMEOUT_MS,
-      });
+      const tempClient = new MongoClient(mongodbUri, { serverSelectionTimeoutMS: 5000 });
       await tempClient.connect();
       await tempClient.db().admin().ping();
       await tempClient.close();
@@ -1142,20 +1100,7 @@ export async function createApp(): Promise<express.Express> {
   });
 
 
-  return app;
-}
-
-// Standalone mode: used for local dev (`npm run dev`) and for host platforms
-// that expect a single long-running process listening on a port, like
-// Cloud Run. This adds the Vite dev middleware or the built static SPA on
-// top of createApp(), then starts listening.
-// NOT used on Vercel - Vercel serves the static frontend from /dist via its
-// own CDN/routing and calls api/index.ts as a serverless function per
-// request instead, so there's nothing here for it to run.
-async function startLocalServer() {
-  const app = await createApp();
-  const PORT = Number(process.env.PORT) || 3000;
-
+  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1175,6 +1120,4 @@ async function startLocalServer() {
   });
 }
 
-if (!process.env.VERCEL) {
-  startLocalServer();
-}
+startServer();

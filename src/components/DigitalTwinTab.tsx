@@ -3,12 +3,14 @@ import {
   Box, Compass, Layers, User, Zap, Navigation, MapPin, 
   RotateCw, RotateCcw, Eye, Play, Pause, RefreshCw, Search, 
   Building, CheckCircle2, AlertTriangle, ShieldAlert, 
-  ArrowRight, Clock, Footprints, Shield, Radio, Activity
+  ArrowRight, Clock, Footprints, Shield, Radio, Activity,
+  Upload, Building2, Image as ImageIcon
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface IndoorTarget {
   id: string;
+  facilityId: string;
   name: string;
   type: 'visitor' | 'staff' | 'room' | 'safety' | 'amenity';
   floor: 'Level 1' | 'Level 2' | 'Level 3';
@@ -28,16 +30,91 @@ interface IndoorTarget {
   }>;
 }
 
+interface FacilityRoom {
+  id: string;
+  facilityId: string;
+  level: 'Level 1' | 'Level 2' | 'Level 3';
+  name: string;
+  subtitle: string;
+  code: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  z?: number;
+  colorType: 'blue' | 'amber' | 'emerald' | 'purple' | 'slate' | 'rose';
+}
+
+const FACILITIES = [
+  { id: 'hq', name: 'GAO HQ Main Building', levels: ['Level 1', 'Level 2', 'Level 3'] },
+  { id: 'warehouse', name: 'Logistics & Warehouse Center', levels: ['Level 1', 'Level 2'] },
+  { id: 'rd', name: 'Secure R&D Tech Campus', levels: ['Level 1', 'Level 2', 'Level 3'] },
+  { id: 'datacenter', name: 'Server Datacenter Annex', levels: ['Level 1', 'Level 2'] }
+];
+
 const START_LOCATIONS = [
-  { id: 'LOBBY', name: 'Main Lobby - Security Desk 1 (Level 1)' },
-  { id: 'ELEVATOR_B', name: 'Elevator B Lobby (Level 2)' },
-  { id: 'DOCK', name: 'South Loading Dock Gate (Level 1)' },
-  { id: 'CAFETERIA', name: 'Cafeteria West Entrance (Level 1)' }
+  { id: 'LOBBY', name: 'Main Lobby - Security Desk 1 (Level 1)', coords: { x: 15, y: 15 } },
+  { id: 'ELEVATOR_B', name: 'Elevator B Lobby (Level 2)', coords: { x: 50, y: 20 } },
+  { id: 'DOCK', name: 'South Loading Dock Gate (Level 1)', coords: { x: 10, y: 80 } },
+  { id: 'CAFETERIA', name: 'Cafeteria West Entrance (Level 1)', coords: { x: 25, y: 35 } }
+];
+
+const FACILITY_ROOMS: FacilityRoom[] = [
+  // --- GAO HQ Main Building (hq) ---
+  { id: 'hq-l1-sec', facilityId: 'hq', level: 'Level 1', name: 'Security Gate 1', subtitle: 'Main Entrance & Badging', code: 'ENT-1', x: 5, y: 5, width: 40, height: 40, z: 15, colorType: 'slate' },
+  { id: 'hq-l1-cafe', facilityId: 'hq', level: 'Level 1', name: 'Cafeteria & Lounge', subtitle: 'Dining & Breakout Space', code: 'AMN-1', x: 5, y: 52, width: 40, height: 42, z: 20, colorType: 'blue' },
+  { id: 'hq-l1-atrium', facilityId: 'hq', level: 'Level 1', name: 'Central Atrium', subtitle: 'Public Assembly Area', code: 'ATR-1', x: 50, y: 5, width: 45, height: 40, z: 15, colorType: 'purple' },
+  { id: 'hq-l1-med', facilityId: 'hq', level: 'Level 1', name: 'First Aid Kiosk', subtitle: 'AED & Emergency Kit', code: 'MED-1', x: 50, y: 52, width: 45, height: 42, z: 25, colorType: 'rose' },
+
+  { id: 'hq-l2-exec', facilityId: 'hq', level: 'Level 2', name: 'Executive Suite A101', subtitle: 'CTO Wing & Boardroom', code: 'EXEC-1', x: 50, y: 5, width: 45, height: 40, z: 25, colorType: 'blue' },
+  { id: 'hq-l2-server', facilityId: 'hq', level: 'Level 2', name: 'Server Vault B204', subtitle: 'Cluster Rack B-08', code: 'RSTR-1', x: 50, y: 52, width: 45, height: 42, z: 30, colorType: 'amber' },
+  { id: 'hq-l2-lab', facilityId: 'hq', level: 'Level 2', name: 'Robotics Lab 3', subtitle: 'RFID Test Bed', code: 'LAB-3', x: 5, y: 52, width: 40, height: 42, z: 20, colorType: 'emerald' },
+  { id: 'hq-l2-exit', facilityId: 'hq', level: 'Level 2', name: 'North Fire Exit', subtitle: 'Emergency Stairwell 2', code: 'SAFE-1', x: 5, y: 5, width: 40, height: 40, z: 15, colorType: 'rose' },
+
+  { id: 'hq-l3-ai', facilityId: 'hq', level: 'Level 3', name: 'AI Neural Lab 301', subtitle: 'Deep Learning Cluster', code: 'LAB-301', x: 5, y: 5, width: 42, height: 42, z: 25, colorType: 'purple' },
+  { id: 'hq-l3-csuite', facilityId: 'hq', level: 'Level 3', name: 'C-Suite Boardroom', subtitle: 'Executive Strategy Hall', code: 'BOARD-3', x: 52, y: 5, width: 43, height: 42, z: 30, colorType: 'blue' },
+  { id: 'hq-l3-vip', facilityId: 'hq', level: 'Level 3', name: 'VIP Observation Lounge', subtitle: 'Panoramic Skyline View', code: 'VIP-1', x: 20, y: 54, width: 60, height: 40, z: 20, colorType: 'emerald' },
+
+  // --- Logistics & Warehouse Center (warehouse) ---
+  { id: 'wh-l1-dock', facilityId: 'warehouse', level: 'Level 1', name: 'Loading Dock Alpha', subtitle: 'Receiving Gate 1-4', code: 'DOCK-A', x: 5, y: 5, width: 42, height: 42, z: 20, colorType: 'amber' },
+  { id: 'wh-l1-bay', facilityId: 'warehouse', level: 'Level 1', name: 'High-Bay Staging Area', subtitle: 'Automated Pallet Racks', code: 'BAY-1', x: 52, y: 5, width: 43, height: 42, z: 30, colorType: 'blue' },
+  { id: 'wh-l1-sort', facilityId: 'warehouse', level: 'Level 1', name: 'Package Sorting Hub', subtitle: 'Conveyor RFID Scanners', code: 'SORT-1', x: 5, y: 52, width: 42, height: 42, z: 22, colorType: 'purple' },
+  { id: 'wh-l1-fork', facilityId: 'warehouse', level: 'Level 1', name: 'Forklift Charging Depot', subtitle: 'Heavy Equipment Bay', code: 'CHG-1', x: 52, y: 52, width: 43, height: 42, z: 18, colorType: 'slate' },
+
+  { id: 'wh-l2-inv', facilityId: 'warehouse', level: 'Level 2', name: 'Inventory Control Office', subtitle: 'Stock Audit Systems', code: 'INV-2', x: 5, y: 5, width: 44, height: 42, z: 22, colorType: 'blue' },
+  { id: 'wh-l2-dispatch', facilityId: 'warehouse', level: 'Level 2', name: 'Dispatch Command Hub', subtitle: 'Fleet Logistics Center', code: 'DISP-1', x: 54, y: 5, width: 41, height: 42, z: 25, colorType: 'emerald' },
+  { id: 'wh-l2-hazmat', facilityId: 'warehouse', level: 'Level 2', name: 'Hazmat Safe Storage', subtitle: 'Pressurized Vault', code: 'HAZ-1', x: 15, y: 52, width: 70, height: 42, z: 30, colorType: 'rose' },
+
+  // --- Secure R&D Tech Campus (rd) ---
+  { id: 'rd-l1-quantum', facilityId: 'rd', level: 'Level 1', name: 'Quantum Physics Testing', subtitle: 'Cryogenic Test Cell', code: 'QTM-1', x: 5, y: 5, width: 42, height: 42, z: 25, colorType: 'purple' },
+  { id: 'rd-l1-arena', facilityId: 'rd', level: 'Level 1', name: 'Robotics Arena', subtitle: 'Autonomous Swarm Test', code: 'BOT-1', x: 52, y: 5, width: 43, height: 42, z: 30, colorType: 'emerald' },
+  { id: 'rd-l1-clean', facilityId: 'rd', level: 'Level 1', name: 'Class-100 Cleanroom', subtitle: 'Silicon Micro-Fab', code: 'FAB-1', x: 5, y: 52, width: 42, height: 42, z: 28, colorType: 'amber' },
+  { id: 'rd-l1-demo', facilityId: 'rd', level: 'Level 1', name: 'Visitor Demo Center', subtitle: 'Interactive Exhibit', code: 'DEMO-1', x: 52, y: 52, width: 43, height: 42, z: 20, colorType: 'blue' },
+
+  { id: 'rd-l2-neural', facilityId: 'rd', level: 'Level 2', name: 'Neural Net Training Bay', subtitle: 'Tensor Supercomputer', code: 'NN-2', x: 5, y: 5, width: 42, height: 42, z: 28, colorType: 'purple' },
+  { id: 'rd-l2-proto', facilityId: 'rd', level: 'Level 2', name: 'Rapid Prototyping Workshop', subtitle: '3D Laser Printing', code: 'PROTO-1', x: 52, y: 5, width: 43, height: 42, z: 22, colorType: 'blue' },
+  { id: 'rd-l2-server', facilityId: 'rd', level: 'Level 2', name: 'R&D Micro-Data Annex', subtitle: 'Edge Computing Racks', code: 'EDGE-1', x: 15, y: 52, width: 70, height: 42, z: 32, colorType: 'slate' },
+
+  { id: 'rd-l3-laser', facilityId: 'rd', level: 'Level 3', name: 'Optical Laser Testing', subtitle: 'Class 4 Laser Chamber', code: 'LSR-3', x: 5, y: 5, width: 44, height: 42, z: 30, colorType: 'rose' },
+  { id: 'rd-l3-drone', facilityId: 'rd', level: 'Level 3', name: 'Drone Flight Test Enclosure', subtitle: 'High-Altitude Cage', code: 'DRN-1', x: 54, y: 5, width: 41, height: 42, z: 25, colorType: 'emerald' },
+  { id: 'rd-l3-lounge', facilityId: 'rd', level: 'Level 3', name: 'R&D Executive Lounge', subtitle: 'Scientist Breakout Zone', code: 'LNG-3', x: 20, y: 52, width: 60, height: 42, z: 20, colorType: 'blue' },
+
+  // --- Server Datacenter Annex (datacenter) ---
+  { id: 'dc-l1-vault-a', facilityId: 'datacenter', level: 'Level 1', name: 'Server Cluster Vault A', subtitle: '100 Gbps Dark Fiber', code: 'VLT-A', x: 5, y: 5, width: 42, height: 42, z: 32, colorType: 'amber' },
+  { id: 'dc-l1-noc', facilityId: 'datacenter', level: 'Level 1', name: 'Network Operations Center', subtitle: '24/7 Security Monitoring', code: 'NOC-1', x: 52, y: 5, width: 43, height: 42, z: 25, colorType: 'blue' },
+  { id: 'dc-l1-power', facilityId: 'datacenter', level: 'Level 1', name: 'High-Voltage Substation', subtitle: 'Dual Grid Transformers', code: 'PWR-1', x: 5, y: 52, width: 42, height: 42, z: 28, colorType: 'rose' },
+  { id: 'dc-l1-cool', facilityId: 'datacenter', level: 'Level 1', name: 'Liquid Cooling Hub', subtitle: 'Chiller Distribution', code: 'COOL-1', x: 52, y: 52, width: 43, height: 42, z: 22, colorType: 'purple' },
+
+  { id: 'dc-l2-fiber', facilityId: 'datacenter', level: 'Level 2', name: 'Fiber Distribution Node', subtitle: 'Main Patch Panel', code: 'FBR-2', x: 5, y: 5, width: 44, height: 42, z: 25, colorType: 'blue' },
+  { id: 'dc-l2-gen', facilityId: 'datacenter', level: 'Level 2', name: 'Emergency Diesel Generators', subtitle: '3MW Backup Power', code: 'GEN-1', x: 54, y: 5, width: 41, height: 42, z: 30, colorType: 'amber' },
+  { id: 'dc-l2-sec', facilityId: 'datacenter', level: 'Level 2', name: 'Security Operations & CCTV', subtitle: 'Biometric Access Control', code: 'CCTV-1', x: 15, y: 52, width: 70, height: 42, z: 22, colorType: 'emerald' }
 ];
 
 const INDOOR_TARGETS: IndoorTarget[] = [
+  // --- GAO HQ Main Building Targets ---
   {
     id: 'vis-alice',
+    facilityId: 'hq',
     name: 'Alice Walker (Active Visitor)',
     type: 'visitor',
     floor: 'Level 2',
@@ -54,16 +131,17 @@ const INDOOR_TARGETS: IndoorTarget[] = [
       { stepNumber: 2, text: 'Proceed North down Central Corridor A', distance: '40m', icon: 'straight' },
       { stepNumber: 3, text: 'Take Elevator B to Level 2', distance: '15m', icon: 'elevator' },
       { stepNumber: 4, text: 'Turn Right towards Executive Suite A101', distance: '35m', icon: 'turn-right' },
-      { stepNumber: 5, text: 'Arrive at Executive Suite A101 (Target Located)', distance: '25m', icon: 'destination' }
+      { stepNumber: 5, text: 'Arrive at Executive Suite A101', distance: '25m', icon: 'destination' }
     ]
   },
   {
     id: 'vis-robert',
+    facilityId: 'hq',
     name: 'Robert Fox (Auditor Visitor)',
     type: 'visitor',
     floor: 'Level 2',
-    zoneName: 'High-Security Server Vault B204',
-    coords2D: { x: 82, y: 68 },
+    zoneName: 'Server Vault B204',
+    coords2D: { x: 72, y: 72 },
     distanceMeters: 185,
     estTime: '2 min 20 sec',
     requiredAccess: 'Escorted Access (Vault B2)',
@@ -80,11 +158,12 @@ const INDOOR_TARGETS: IndoorTarget[] = [
   },
   {
     id: 'staff-priya',
+    facilityId: 'hq',
     name: 'Priya Sharma (R&D Lab Lead)',
     type: 'staff',
     floor: 'Level 2',
-    zoneName: 'R&D Robotics Lab 3',
-    coords2D: { x: 32, y: 72 },
+    zoneName: 'Robotics Lab 3',
+    coords2D: { x: 25, y: 72 },
     distanceMeters: 95,
     estTime: '1 min 10 sec',
     requiredAccess: 'R&D Level 3 Clearance',
@@ -101,11 +180,12 @@ const INDOOR_TARGETS: IndoorTarget[] = [
   },
   {
     id: 'room-exec',
+    facilityId: 'hq',
     name: 'Executive Suite A101',
     type: 'room',
     floor: 'Level 2',
     zoneName: 'Executive Wing',
-    coords2D: { x: 75, y: 20 },
+    coords2D: { x: 72, y: 25 },
     distanceMeters: 110,
     estTime: '1 min 30 sec',
     requiredAccess: 'Standard Visitor Badge',
@@ -119,50 +199,13 @@ const INDOOR_TARGETS: IndoorTarget[] = [
     ]
   },
   {
-    id: 'room-server',
-    name: 'High-Density Server Vault B204',
-    type: 'room',
-    floor: 'Level 2',
-    zoneName: 'Server Wing B',
-    coords2D: { x: 85, y: 70 },
-    distanceMeters: 190,
-    estTime: '2 min 30 sec',
-    requiredAccess: 'Restricted Security Level 4',
-    description: 'Main server cluster and network infrastructure vault.',
-    steps: [
-      { stepNumber: 1, text: 'Start at Security Desk 1', distance: '0m', icon: 'straight' },
-      { stepNumber: 2, text: 'Proceed North to Elevator B', distance: '45m', icon: 'straight' },
-      { stepNumber: 3, text: 'Take Elevator to Floor 2', distance: '15m', icon: 'elevator' },
-      { stepNumber: 4, text: 'Turn Left into High-Security Vault Corridor', distance: '70m', icon: 'turn-left' },
-      { stepNumber: 5, text: 'Vault B204 double-door entrance', distance: '60m', icon: 'destination' }
-    ]
-  },
-  {
-    id: 'room-lab',
-    name: 'R&D Robotics Lab 3',
-    type: 'room',
-    floor: 'Level 2',
-    zoneName: 'Robotics Wing',
-    coords2D: { x: 28, y: 75 },
-    distanceMeters: 90,
-    estTime: '1 min 05 sec',
-    requiredAccess: 'R&D Clearance',
-    description: 'Prototyping facility for autonomous RFID tracking equipment.',
-    steps: [
-      { stepNumber: 1, text: 'Start at Security Desk 1', distance: '0m', icon: 'straight' },
-      { stepNumber: 2, text: 'Proceed West through Atrium', distance: '30m', icon: 'straight' },
-      { stepNumber: 3, text: 'Take Stairwell West to Floor 2', distance: '20m', icon: 'elevator' },
-      { stepNumber: 4, text: 'Turn Left at R&D Entrance', distance: '25m', icon: 'turn-left' },
-      { stepNumber: 5, text: 'Robotics Lab 3 entrance on right', distance: '15m', icon: 'destination' }
-    ]
-  },
-  {
     id: 'room-cafe',
+    facilityId: 'hq',
     name: 'Main Cafeteria & Lounge',
     type: 'amenity',
     floor: 'Level 1',
-    zoneName: 'Dining & Atrium',
-    coords2D: { x: 25, y: 35 },
+    zoneName: 'Cafeteria & Lounge',
+    coords2D: { x: 25, y: 72 },
     distanceMeters: 55,
     estTime: '40 sec',
     requiredAccess: 'Public Access',
@@ -176,11 +219,12 @@ const INDOOR_TARGETS: IndoorTarget[] = [
   },
   {
     id: 'safety-exit-north',
-    name: 'Emergency Exit North (Level 2)',
+    facilityId: 'hq',
+    name: 'North Fire Exit',
     type: 'safety',
     floor: 'Level 2',
-    zoneName: 'Safety Escape Way 1',
-    coords2D: { x: 15, y: 15 },
+    zoneName: 'North Fire Exit',
+    coords2D: { x: 25, y: 25 },
     distanceMeters: 70,
     estTime: '45 sec',
     requiredAccess: 'Emergency Unlocked',
@@ -191,27 +235,186 @@ const INDOOR_TARGETS: IndoorTarget[] = [
       { stepNumber: 3, text: 'Push Emergency Crash Door North-1', distance: '30m', icon: 'destination' }
     ]
   },
+
+  // --- Logistics & Warehouse Center Targets ---
   {
-    id: 'safety-med',
-    name: 'First Aid & Medical Kiosk',
-    type: 'safety',
+    id: 'wh-dock-target',
+    facilityId: 'warehouse',
+    name: 'Loading Dock Alpha',
+    type: 'room',
     floor: 'Level 1',
-    zoneName: 'Safety Station 2',
-    coords2D: { x: 50, y: 45 },
-    distanceMeters: 40,
-    estTime: '30 sec',
-    requiredAccess: 'Open Access',
-    description: 'Automated External Defibrillator (AED) and emergency medical kit.',
+    zoneName: 'Loading Dock Alpha',
+    coords2D: { x: 25, y: 25 },
+    distanceMeters: 45,
+    estTime: '35 sec',
+    requiredAccess: 'Warehouse Badge',
+    description: 'Primary receiving dock for incoming freight and cargo shipments.',
     steps: [
-      { stepNumber: 1, text: 'Start at Security Desk 1', distance: '0m', icon: 'straight' },
-      { stepNumber: 2, text: 'Walk 40m straight into Central Atrium', distance: '40m', icon: 'straight' },
-      { stepNumber: 3, text: 'First Aid Kiosk on your Right', distance: '0m', icon: 'destination' }
+      { stepNumber: 1, text: 'Start at Main Gate', distance: '0m', icon: 'straight' },
+      { stepNumber: 2, text: 'Walk along Receiving Bay A', distance: '30m', icon: 'straight' },
+      { stepNumber: 3, text: 'Arrive at Dock Alpha', distance: '15m', icon: 'destination' }
+    ]
+  },
+  {
+    id: 'wh-marcus-target',
+    facilityId: 'warehouse',
+    name: 'Marcus Vance (Logistics Supervisor)',
+    type: 'staff',
+    floor: 'Level 1',
+    zoneName: 'High-Bay Staging Area',
+    coords2D: { x: 72, y: 25 },
+    distanceMeters: 80,
+    estTime: '1 min',
+    requiredAccess: 'Supervisor Badge',
+    status: 'In High-Bay Staging Area',
+    tagId: 'T108',
+    description: 'Supervising pallet conveyor calibration and RFID inventory scan.',
+    steps: [
+      { stepNumber: 1, text: 'Start at Main Gate', distance: '0m', icon: 'straight' },
+      { stepNumber: 2, text: 'Proceed East past Staging A', distance: '50m', icon: 'straight' },
+      { stepNumber: 3, text: 'Arrive at High-Bay Rack 12', distance: '30m', icon: 'destination' }
+    ]
+  },
+  {
+    id: 'wh-hazmat-target',
+    facilityId: 'warehouse',
+    name: 'Hazmat Safe Storage',
+    type: 'safety',
+    floor: 'Level 2',
+    zoneName: 'Hazmat Safe Storage',
+    coords2D: { x: 50, y: 72 },
+    distanceMeters: 140,
+    estTime: '1 min 50 sec',
+    requiredAccess: 'Hazmat Level 4 Clearance',
+    description: 'Climate-controlled containment room for regulated chemical materials.',
+    steps: [
+      { stepNumber: 1, text: 'Start at Gate A', distance: '0m', icon: 'straight' },
+      { stepNumber: 2, text: 'Take Industrial Lift to Level 2', distance: '40m', icon: 'elevator' },
+      { stepNumber: 3, text: 'Turn Right into Vault Corridor', distance: '100m', icon: 'destination' }
+    ]
+  },
+
+  // --- Secure R&D Tech Campus Targets ---
+  {
+    id: 'rd-elena-target',
+    facilityId: 'rd',
+    name: 'Dr. Elena Rostova (Lead Physicist)',
+    type: 'staff',
+    floor: 'Level 1',
+    zoneName: 'Quantum Physics Testing',
+    coords2D: { x: 25, y: 25 },
+    distanceMeters: 65,
+    estTime: '50 sec',
+    requiredAccess: 'R&D Level 3',
+    status: 'In Cryogenic Lab',
+    tagId: 'T302',
+    description: 'Monitoring superconducting sensor tests on RFID quantum tags.',
+    steps: [
+      { stepNumber: 1, text: 'Start at Campus Entrance', distance: '0m', icon: 'straight' },
+      { stepNumber: 2, text: 'Walk West into Testing Wing', distance: '45m', icon: 'straight' },
+      { stepNumber: 3, text: 'Enter Quantum Testing Cell 1', distance: '20m', icon: 'destination' }
+    ]
+  },
+  {
+    id: 'rd-clean-target',
+    facilityId: 'rd',
+    name: 'Class-100 Cleanroom',
+    type: 'room',
+    floor: 'Level 1',
+    zoneName: 'Class-100 Cleanroom',
+    coords2D: { x: 25, y: 72 },
+    distanceMeters: 90,
+    estTime: '1 min 10 sec',
+    requiredAccess: 'Gown Room Clearance',
+    description: 'Ultra-clean silicon fab room for micro-sensor development.',
+    steps: [
+      { stepNumber: 1, text: 'Start at Campus Entrance', distance: '0m', icon: 'straight' },
+      { stepNumber: 2, text: 'Proceed South down Clean Corridor', distance: '60m', icon: 'straight' },
+      { stepNumber: 3, text: 'Enter Air Lock Chamber', distance: '30m', icon: 'destination' }
+    ]
+  },
+  {
+    id: 'rd-neural-target',
+    facilityId: 'rd',
+    name: 'Neural Net Training Bay',
+    type: 'room',
+    floor: 'Level 2',
+    zoneName: 'Neural Net Training Bay',
+    coords2D: { x: 25, y: 25 },
+    distanceMeters: 120,
+    estTime: '1 min 30 sec',
+    requiredAccess: 'AI Research Badge',
+    description: 'High-density GPU cluster running neural spatial tracking models.',
+    steps: [
+      { stepNumber: 1, text: 'Start at Elevator Bank', distance: '0m', icon: 'straight' },
+      { stepNumber: 2, text: 'Ascend to Level 2', distance: '20m', icon: 'elevator' },
+      { stepNumber: 3, text: 'Turn Left into Server Wing', distance: '100m', icon: 'destination' }
+    ]
+  },
+
+  // --- Server Datacenter Annex Targets ---
+  {
+    id: 'dc-chen-target',
+    facilityId: 'datacenter',
+    name: 'David Chen (NOC Systems Admin)',
+    type: 'staff',
+    floor: 'Level 1',
+    zoneName: 'Network Operations Center',
+    coords2D: { x: 72, y: 25 },
+    distanceMeters: 50,
+    estTime: '40 sec',
+    requiredAccess: 'NOC Level 2 Clearance',
+    status: 'In NOC Command Console',
+    tagId: 'T501',
+    description: 'Monitoring real-time telemetry from 500+ UHF RFID gateways.',
+    steps: [
+      { stepNumber: 1, text: 'Start at Security Checkpoint', distance: '0m', icon: 'straight' },
+      { stepNumber: 2, text: 'Proceed East past Monitoring Glass', distance: '35m', icon: 'straight' },
+      { stepNumber: 3, text: 'Enter NOC Command Room', distance: '15m', icon: 'destination' }
+    ]
+  },
+  {
+    id: 'dc-vault-target',
+    facilityId: 'datacenter',
+    name: 'Server Cluster Vault A',
+    type: 'room',
+    floor: 'Level 1',
+    zoneName: 'Server Cluster Vault A',
+    coords2D: { x: 25, y: 25 },
+    distanceMeters: 85,
+    estTime: '1 min 05 sec',
+    requiredAccess: 'Biometric Access Level 5',
+    description: 'Ultra-secure core server racks holding real-time tracking logs.',
+    steps: [
+      { stepNumber: 1, text: 'Start at Security Checkpoint', distance: '0m', icon: 'straight' },
+      { stepNumber: 2, text: 'Walk West along Cold-Aisle Corridor', distance: '60m', icon: 'straight' },
+      { stepNumber: 3, text: 'Scan Palm Scanner at Vault A Gate', distance: '25m', icon: 'destination' }
+    ]
+  },
+  {
+    id: 'dc-gen-target',
+    facilityId: 'datacenter',
+    name: 'Emergency Diesel Generators',
+    type: 'safety',
+    floor: 'Level 2',
+    zoneName: 'Emergency Diesel Generators',
+    coords2D: { x: 72, y: 25 },
+    distanceMeters: 130,
+    estTime: '1 min 40 sec',
+    requiredAccess: 'Facilities Staff Badge',
+    description: '3MW industrial diesel generators with 72-hour fuel capacity.',
+    steps: [
+      { stepNumber: 1, text: 'Start at Elevator 1', distance: '0m', icon: 'straight' },
+      { stepNumber: 2, text: 'Ascend to Level 2 Power Wing', distance: '30m', icon: 'elevator' },
+      { stepNumber: 3, text: 'Turn Right to Generator Bay 1', distance: '100m', icon: 'destination' }
     ]
   }
 ];
 
 export default function DigitalTwinTab() {
   const [viewMode, setViewMode] = useState<'3d' | '2d'>('3d');
+  const [selectedFacility, setSelectedFacility] = useState<string>('hq');
+  const [customFloorplanUrl, setCustomFloorplanUrl] = useState<string | null>(null);
   const [selectedStart, setSelectedStart] = useState<string>('LOBBY');
   const [selectedTargetId, setSelectedTargetId] = useState<string>('vis-alice');
   const [targetFilter, setTargetFilter] = useState<'All' | 'People' | 'Rooms' | 'Safety'>('All');
@@ -226,14 +429,55 @@ export default function DigitalTwinTab() {
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [simProgress, setSimProgress] = useState<number>(0);
 
-  const selectedTarget = INDOOR_TARGETS.find(t => t.id === selectedTargetId) || INDOOR_TARGETS[0];
+  const activeFacility = FACILITIES.find(f => f.id === selectedFacility) || FACILITIES[0];
+  const facilityTargets = INDOOR_TARGETS.filter(t => t.facilityId === selectedFacility);
 
-  // Auto update level based on target
+  const filteredTargets = facilityTargets.filter(t => {
+    if (targetFilter === 'People') return t.type === 'visitor' || t.type === 'staff';
+    if (targetFilter === 'Rooms') return t.type === 'room' || t.type === 'amenity';
+    if (targetFilter === 'Safety') return t.type === 'safety';
+    return true;
+  });
+
+  const selectedTarget = INDOOR_TARGETS.find(t => t.id === selectedTargetId) || facilityTargets[0] || INDOOR_TARGETS[0];
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setCustomFloorplanUrl(url);
+    }
+  };
+
+  // Sync selected target when facility changes
+  useEffect(() => {
+    if (facilityTargets.length > 0) {
+      const exists = facilityTargets.some(t => t.id === selectedTargetId);
+      if (!exists) {
+        setSelectedTargetId(facilityTargets[0].id);
+      }
+    }
+  }, [selectedFacility]);
+
+  // Sync selected level when active facility changes or target changes
+  useEffect(() => {
+    if (activeFacility) {
+      if (!activeFacility.levels.includes(selectedLevel)) {
+        setSelectedLevel(activeFacility.levels[0] as any);
+      }
+    }
+  }, [selectedFacility]);
+
+  // Sync level when target changes
   useEffect(() => {
     if (selectedTarget) {
       setSelectedLevel(selectedTarget.floor);
     }
   }, [selectedTargetId]);
+
+  const currentLevelRooms = FACILITY_ROOMS.filter(
+    r => r.facilityId === selectedFacility && r.level === selectedLevel
+  );
 
   // Simulation loop
   useEffect(() => {
@@ -256,13 +500,6 @@ export default function DigitalTwinTab() {
     setSimProgress(0);
     setIsSimulating(true);
   };
-
-  const filteredTargets = INDOOR_TARGETS.filter(t => {
-    if (targetFilter === 'People') return t.type === 'visitor' || t.type === 'staff';
-    if (targetFilter === 'Rooms') return t.type === 'room' || t.type === 'amenity';
-    if (targetFilter === 'Safety') return t.type === 'safety';
-    return true;
-  });
 
   return (
     <div className="w-full flex flex-col p-6 max-w-7xl mx-auto gap-6">
@@ -320,6 +557,42 @@ export default function DigitalTwinTab() {
           </div>
 
           {/* Quick Target Category Filters */}
+          <div>
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Select Facility & Floor Plan</label>
+            <div className="space-y-2">
+              <div className="relative">
+                <Building2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#007BC4]" />
+                <select
+                  value={selectedFacility}
+                  onChange={e => setSelectedFacility(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#007BC4]/20"
+                >
+                  {FACILITIES.map(fac => (
+                    <option key={fac.id} value={fac.id}>{fac.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Upload Custom Floorplan Button */}
+              <div className="flex items-center gap-2">
+                <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-pointer transition">
+                  <Upload className="w-4 h-4 text-[#007BC4]" />
+                  {customFloorplanUrl ? 'Change Floorplan Image' : 'Upload Floorplan Image'}
+                  <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                </label>
+                {customFloorplanUrl && (
+                  <button 
+                    onClick={() => setCustomFloorplanUrl(null)}
+                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition"
+                    title="Remove custom floor plan"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Target Filter</label>
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
@@ -428,34 +701,36 @@ export default function DigitalTwinTab() {
           )}
 
           {/* Turn-by-Turn Navigation Steps */}
-          <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-3 pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Turn-by-turn Directions</h4>
-            <div className="space-y-3 relative before:absolute before:inset-0 before:ml-[11px] before:h-full before:w-0.5 before:bg-slate-200">
-              {selectedTarget.steps.map((step, idx) => {
-                const stepThreshold = ((idx + 1) / selectedTarget.steps.length) * 100;
-                const isCompletedStep = simProgress >= stepThreshold;
-                return (
-                  <div key={idx} className="relative flex items-start gap-3">
-                    <div className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center z-10 shrink-0 text-[10px] font-bold ${
-                      isCompletedStep 
-                        ? 'bg-emerald-500 text-white shadow-sm' 
-                        : idx === selectedTarget.steps.length - 1 
-                          ? 'bg-[#007BC4] text-white shadow-sm' 
-                          : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {isCompletedStep ? '✓' : step.stepNumber}
-                    </div>
-                    <div className="pt-0.5">
-                      <div className={`text-xs ${isCompletedStep ? 'font-bold text-emerald-800' : 'font-medium text-slate-800'}`}>
-                        {step.text}
+          {selectedTarget && (
+            <div className="flex-1 overflow-y-auto max-h-[220px] pr-1 space-y-3 pt-2 border-t border-slate-100">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Turn-by-turn Directions</h4>
+              <div className="space-y-3 relative before:absolute before:inset-0 before:ml-[11px] before:h-full before:w-0.5 before:bg-slate-200">
+                {selectedTarget.steps.map((step, idx) => {
+                  const stepThreshold = ((idx + 1) / selectedTarget.steps.length) * 100;
+                  const isCompletedStep = simProgress >= stepThreshold;
+                  return (
+                    <div key={idx} className="relative flex items-start gap-3">
+                      <div className={`w-6 h-6 rounded-full border-2 border-white flex items-center justify-center z-10 shrink-0 text-[10px] font-bold ${
+                        isCompletedStep 
+                          ? 'bg-emerald-500 text-white shadow-sm' 
+                          : idx === selectedTarget.steps.length - 1 
+                            ? 'bg-[#007BC4] text-white shadow-sm' 
+                            : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {isCompletedStep ? '✓' : step.stepNumber}
                       </div>
-                      <span className="text-[10px] font-mono text-slate-400">{step.distance}</span>
+                      <div className="pt-0.5">
+                        <div className={`text-xs ${isCompletedStep ? 'font-bold text-emerald-800' : 'font-medium text-slate-800'}`}>
+                          {step.text}
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400">{step.distance}</span>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Right Canvas - 3D / 2D Viewport (8 Cols) */}
@@ -467,15 +742,15 @@ export default function DigitalTwinTab() {
                 <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-1.5 inline-block"/>
                 LIVE TWIN ENGINE
               </Badge>
-              <span className="text-slate-400 text-xs font-mono font-bold hidden sm:inline">WebGL 60FPS • GAO Spatial 3.2</span>
+              <span className="text-slate-400 text-xs font-mono font-bold hidden sm:inline">{activeFacility.name}</span>
             </div>
 
             {/* Level Selector Buttons */}
             <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-xl border border-slate-700">
-              {(['Level 1', 'Level 2', 'Level 3'] as const).map(lvl => (
+              {activeFacility.levels.map(lvl => (
                 <button
                   key={lvl}
-                  onClick={() => setSelectedLevel(lvl)}
+                  onClick={() => setSelectedLevel(lvl as any)}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
                     selectedLevel === lvl 
                       ? 'bg-[#007BC4] text-white shadow-sm' 
@@ -536,148 +811,187 @@ export default function DigitalTwinTab() {
                   transformStyle: 'preserve-3d',
                 }}
               >
-                {/* 3D Zone Blocks */}
-                {/* Executive Wing */}
-                <div className="absolute top-6 right-6 w-44 h-28 bg-[#007BC4]/20 border-2 border-[#007BC4] rounded-2xl p-3 shadow-[0_10px_30px_rgba(0,123,196,0.3)] backdrop-blur-sm flex flex-col justify-between"
-                  style={{ transform: 'translateZ(20px)' }}
-                >
-                  <div className="text-[11px] font-bold text-sky-300 flex items-center justify-between">
-                    <span>Executive Suite A101</span>
-                    <Badge className="bg-[#007BC4] text-white text-[9px]">L2</Badge>
-                  </div>
-                  <div className="text-[10px] text-slate-300 font-mono">Room A101 • CTO Wing</div>
-                </div>
+                {/* Dynamic 3D Room Blocks for Active Facility & Level */}
+                {currentLevelRooms.map(room => {
+                  const isTargetRoom = selectedTarget && (
+                    selectedTarget.zoneName.toLowerCase().includes(room.name.toLowerCase()) || 
+                    room.name.toLowerCase().includes(selectedTarget.zoneName.toLowerCase())
+                  );
 
-                {/* Server Room B2 */}
-                <div className="absolute bottom-6 right-6 w-44 h-32 bg-amber-500/20 border-2 border-amber-500/80 rounded-2xl p-3 shadow-[0_10px_30px_rgba(245,158,11,0.2)] backdrop-blur-sm flex flex-col justify-between"
-                  style={{ transform: 'translateZ(30px)' }}
-                >
-                  <div className="text-[11px] font-bold text-amber-300 flex items-center justify-between">
-                    <span>Server Vault B204</span>
-                    <Badge className="bg-amber-500 text-slate-950 font-bold text-[9px]">RESTRICTED</Badge>
-                  </div>
-                  <div className="text-[10px] text-slate-300 font-mono">Cluster Rack B-08</div>
-                </div>
-
-                {/* R&D Robotics Lab 3 */}
-                <div className="absolute bottom-6 left-6 w-44 h-32 bg-emerald-500/20 border-2 border-emerald-500/80 rounded-2xl p-3 shadow-[0_10px_30px_rgba(16,185,129,0.2)] backdrop-blur-sm flex flex-col justify-between"
-                  style={{ transform: 'translateZ(25px)' }}
-                >
-                  <div className="text-[11px] font-bold text-emerald-300 flex items-center justify-between">
-                    <span>Robotics Lab 3</span>
-                    <Badge className="bg-emerald-500 text-slate-950 font-bold text-[9px]">ACTIVE</Badge>
-                  </div>
-                  <div className="text-[10px] text-slate-300 font-mono">RFID Test Bed</div>
-                </div>
-
-                {/* Main Lobby / Security Desk */}
-                <div className="absolute top-6 left-6 w-40 h-24 bg-slate-800/80 border-2 border-slate-600 rounded-2xl p-3 backdrop-blur-sm flex flex-col justify-between"
-                  style={{ transform: 'translateZ(10px)' }}
-                >
-                  <div className="text-[11px] font-bold text-slate-200">Security Gate 1</div>
-                  <div className="text-[10px] text-slate-400 font-mono">Level 1 • Entrance</div>
-                </div>
+                  return (
+                    <div 
+                      key={room.id}
+                      onClick={() => {
+                        const matchingTarget = facilityTargets.find(
+                          t => t.zoneName.toLowerCase().includes(room.name.toLowerCase()) || room.name.toLowerCase().includes(t.zoneName.toLowerCase())
+                        );
+                        if (matchingTarget) setSelectedTargetId(matchingTarget.id);
+                      }}
+                      className={`absolute rounded-2xl p-3 shadow-lg border-2 backdrop-blur-md cursor-pointer transition-all duration-300 flex flex-col justify-between ${
+                        isTargetRoom 
+                          ? 'ring-4 ring-[#007BC4] scale-105 z-20 bg-[#007BC4]/40 border-[#007BC4] shadow-[0_0_30px_rgba(0,123,196,0.6)]' 
+                          : room.colorType === 'blue' ? 'bg-[#007BC4]/20 border-[#007BC4] hover:bg-[#007BC4]/30'
+                          : room.colorType === 'amber' ? 'bg-amber-500/20 border-amber-500/80 hover:bg-amber-500/30'
+                          : room.colorType === 'emerald' ? 'bg-emerald-500/20 border-emerald-500/80 hover:bg-emerald-500/30'
+                          : room.colorType === 'purple' ? 'bg-purple-500/20 border-purple-500/80 hover:bg-purple-500/30'
+                          : room.colorType === 'rose' ? 'bg-rose-500/20 border-rose-500/80 hover:bg-rose-500/30'
+                          : 'bg-slate-800/80 border-slate-600 hover:bg-slate-700/80'
+                      }`}
+                      style={{
+                        left: `${room.x}%`,
+                        top: `${room.y}%`,
+                        width: `${room.width}%`,
+                        height: `${room.height}%`,
+                        transform: `translateZ(${room.z || 20}px)`
+                      }}
+                    >
+                      <div className="text-[11px] font-bold text-slate-100 flex items-center justify-between gap-1">
+                        <span className="truncate">{room.name}</span>
+                        <Badge className={`text-[9px] font-bold shrink-0 ${
+                          isTargetRoom ? 'bg-[#007BC4] text-white' : 'bg-slate-800 text-slate-200 border-slate-600'
+                        }`}>{room.code}</Badge>
+                      </div>
+                      <div className="text-[10px] text-slate-300 font-mono truncate">{room.subtitle}</div>
+                    </div>
+                  );
+                })}
 
                 {/* Glowing 3D Navigation Path Overlay */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ transform: 'translateZ(35px)' }}>
-                  <line 
-                    x1="120" y1="80" 
-                    x2="260" y2="180" 
-                    stroke="#007BC4" strokeWidth="4" strokeDasharray="6 6"
-                    className="animate-pulse"
-                  />
-                  <line 
-                    x1="260" y1="180" 
-                    x2={selectedTarget.coords2D.x * 5} y2={selectedTarget.coords2D.y * 3.4} 
-                    stroke="#007BC4" strokeWidth="4" strokeDasharray="6 6"
-                    className="animate-pulse"
-                  />
-
-                  {/* Animated Simulated Walker Dot */}
-                  {simProgress > 0 && (
-                    <circle 
-                      cx={120 + ((selectedTarget.coords2D.x * 5 - 120) * (simProgress / 100))} 
-                      cy={80 + ((selectedTarget.coords2D.y * 3.4 - 80) * (simProgress / 100))} 
-                      r="7" 
-                      fill="#38bdf8" 
-                      className="shadow-[0_0_20px_#38bdf8] animate-bounce"
+                {selectedTarget && (
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ transform: 'translateZ(35px)' }}>
+                    <line 
+                      x1="120" y1="80" 
+                      x2="260" y2="180" 
+                      stroke="#007BC4" strokeWidth="4" strokeDasharray="6 6"
+                      className="animate-pulse"
                     />
-                  )}
-                </svg>
+                    <line 
+                      x1="260" y1="180" 
+                      x2={selectedTarget.coords2D.x * 5} y2={selectedTarget.coords2D.y * 3.4} 
+                      stroke="#007BC4" strokeWidth="4" strokeDasharray="6 6"
+                      className="animate-pulse"
+                    />
+
+                    {/* Animated Simulated Walker Dot */}
+                    {simProgress > 0 && (
+                      <circle 
+                        cx={120 + ((selectedTarget.coords2D.x * 5 - 120) * (simProgress / 100))} 
+                        cy={80 + ((selectedTarget.coords2D.y * 3.4 - 80) * (simProgress / 100))} 
+                        r="7" 
+                        fill="#38bdf8" 
+                        className="shadow-[0_0_20px_#38bdf8] animate-bounce"
+                      />
+                    )}
+                  </svg>
+                )}
 
                 {/* Target Marker Pin */}
-                <div 
-                  className="absolute z-20 transition-all duration-500 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
-                  style={{
-                    left: `${selectedTarget.coords2D.x}%`,
-                    top: `${selectedTarget.coords2D.y}%`,
-                    transform: 'translateZ(45px)'
-                  }}
-                >
-                  <div className="bg-[#007BC4] text-white p-2 rounded-full border-2 border-white shadow-[0_0_25px_#007BC4] animate-bounce">
-                    <MapPin className="w-5 h-5 text-white" />
+                {selectedTarget && (
+                  <div 
+                    className="absolute z-20 transition-all duration-500 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none"
+                    style={{
+                      left: `${selectedTarget.coords2D.x}%`,
+                      top: `${selectedTarget.coords2D.y}%`,
+                      transform: 'translateZ(45px)'
+                    }}
+                  >
+                    <div className="bg-[#007BC4] text-white p-2 rounded-full border-2 border-white shadow-[0_0_25px_#007BC4] animate-bounce">
+                      <MapPin className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="bg-slate-900/90 text-white font-bold text-[10px] px-2 py-0.5 rounded shadow-md mt-1 border border-slate-700 whitespace-nowrap">
+                      {selectedTarget.name}
+                    </div>
                   </div>
-                  <div className="bg-slate-900/90 text-white font-bold text-[10px] px-2 py-0.5 rounded shadow-md mt-1 border border-slate-700 whitespace-nowrap">
-                    {selectedTarget.name}
-                  </div>
-                </div>
+                )}
               </div>
             )}
 
             {/* 2D VIEW MODE */}
             {viewMode === '2d' && (
               <div className="relative w-full max-w-xl h-[380px] bg-slate-900 border-2 border-slate-800 rounded-2xl shadow-2xl p-6 overflow-hidden flex flex-col justify-between">
-                <div className="absolute top-3 left-4 text-xs font-mono font-bold text-slate-400 flex items-center gap-2">
+                <div className="absolute top-3 left-4 z-20 text-xs font-mono font-bold text-slate-200 bg-slate-950/80 px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-2">
                   <Layers className="w-4 h-4 text-[#007BC4]" />
-                  2D Floor Vector Map • {selectedLevel} Grid
+                  {activeFacility.name} • {selectedLevel} {customFloorplanUrl ? '(Custom Uploaded Map)' : '(Vector Blueprint)'}
                 </div>
 
-                {/* Vector Grid Blueprint SVG */}
-                <svg className="absolute inset-0 w-full h-full p-4 pointer-events-none" viewBox="0 0 500 350">
-                  {/* Grid Lines */}
-                  <defs>
-                    <pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse">
-                      <path d="M 25 0 L 0 0 0 25" fill="none" stroke="#1e293b" strokeWidth="1" />
-                    </pattern>
-                  </defs>
-                  <rect width="100%" height="100%" fill="url(#grid)" />
-
-                  {/* Building Room Outlines */}
-                  <rect x="30" y="40" width="120" height="90" fill="#1e293b" stroke="#334155" strokeWidth="2" rx="8" />
-                  <text x="40" y="65" fill="#94a3b8" fontSize="10" fontWeight="bold">SECURITY LOBBY</text>
-
-                  <rect x="200" y="40" width="260" height="110" fill="#0f172a" stroke="#007BC4" strokeWidth="2" rx="8" />
-                  <text x="210" y="65" fill="#38bdf8" fontSize="10" fontWeight="bold">EXECUTIVE SUITE A101</text>
-
-                  <rect x="30" y="180" width="180" height="130" fill="#0f172a" stroke="#10b981" strokeWidth="2" rx="8" />
-                  <text x="40" y="205" fill="#34d399" fontSize="10" fontWeight="bold">ROBOTICS LAB 3</text>
-
-                  <rect x="260" y="180" width="200" height="130" fill="#0f172a" stroke="#f59e0b" strokeWidth="2" rx="8" />
-                  <text x="270" y="205" fill="#fbbf24" fontSize="10" fontWeight="bold">SERVER VAULT B204</text>
-
-                  {/* Navigation Path Line */}
-                  <path 
-                    d={`M 90 85 L 230 85 L ${selectedTarget.coords2D.x * 4.8} ${selectedTarget.coords2D.y * 3.2}`} 
-                    fill="none" 
-                    stroke="#007BC4" 
-                    strokeWidth="3" 
-                    strokeDasharray="6 6"
-                  />
-
-                  {/* Animated Simulated Walker Dot */}
-                  {simProgress > 0 && (
-                    <circle 
-                      cx={90 + ((selectedTarget.coords2D.x * 4.8 - 90) * (simProgress / 100))} 
-                      cy={85 + ((selectedTarget.coords2D.y * 3.2 - 85) * (simProgress / 100))} 
-                      r="6" 
-                      fill="#38bdf8" 
+                {customFloorplanUrl ? (
+                  <div className="absolute inset-0 z-0">
+                    <img 
+                      src={customFloorplanUrl} 
+                      alt="Uploaded Floorplan" 
+                      className="w-full h-full object-cover opacity-70"
                     />
-                  )}
-                </svg>
+                    <div className="absolute inset-0 bg-slate-950/40" />
+                  </div>
+                ) : (
+                  /* Vector Grid Blueprint SVG */
+                  <svg className="absolute inset-0 w-full h-full p-4 pointer-events-none z-0" viewBox="0 0 500 350">
+                    {/* Grid Lines */}
+                    <defs>
+                      <pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse">
+                        <path d="M 25 0 L 0 0 0 25" fill="none" stroke="#1e293b" strokeWidth="1" />
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#grid)" />
 
-                {/* Clickable Target Waypoints on 2D Map */}
-                <div className="relative w-full h-full">
-                  {INDOOR_TARGETS.map(t => (
+                    {/* Dynamic Room Outlines for Selected Facility & Level */}
+                    {currentLevelRooms.map(r => {
+                      const isTargetRoom = selectedTarget && (
+                        selectedTarget.zoneName.toLowerCase().includes(r.name.toLowerCase()) || 
+                        r.name.toLowerCase().includes(selectedTarget.zoneName.toLowerCase())
+                      );
+
+                      return (
+                        <g key={r.id}>
+                          <rect 
+                            x={r.x * 4.6 + 10} 
+                            y={r.y * 3.1 + 10} 
+                            width={r.width * 4.6} 
+                            height={r.height * 3.1} 
+                            fill={isTargetRoom ? "#007BC4" : "#0f172a"} 
+                            stroke={isTargetRoom ? "#38bdf8" : r.colorType === 'amber' ? '#f59e0b' : r.colorType === 'emerald' ? '#10b981' : r.colorType === 'purple' ? '#a855f7' : r.colorType === 'rose' ? '#f43f5e' : '#007BC4'} 
+                            strokeWidth={isTargetRoom ? "3" : "2"} 
+                            rx="8" 
+                          />
+                          <text 
+                            x={r.x * 4.6 + 20} 
+                            y={r.y * 3.1 + 32} 
+                            fill={isTargetRoom ? "#ffffff" : "#94a3b8"} 
+                            fontSize="10" 
+                            fontWeight="bold"
+                          >
+                            {r.name.toUpperCase()}
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Navigation Path Line */}
+                    {selectedTarget && (
+                      <path 
+                        d={`M 90 85 L 230 85 L ${selectedTarget.coords2D.x * 4.8} ${selectedTarget.coords2D.y * 3.2}`} 
+                        fill="none" 
+                        stroke="#007BC4" 
+                        strokeWidth="3" 
+                        strokeDasharray="6 6"
+                      />
+                    )}
+
+                    {/* Animated Simulated Walker Dot */}
+                    {simProgress > 0 && selectedTarget && (
+                      <circle 
+                        cx={90 + ((selectedTarget.coords2D.x * 4.8 - 90) * (simProgress / 100))} 
+                        cy={85 + ((selectedTarget.coords2D.y * 3.2 - 85) * (simProgress / 100))} 
+                        r="6" 
+                        fill="#38bdf8" 
+                      />
+                    )}
+                  </svg>
+                )}
+
+                {/* Clickable Target Waypoints on 2D Map filtered by facility & level */}
+                <div className="relative w-full h-full z-10">
+                  {facilityTargets.filter(t => t.floor === selectedLevel).map(t => (
                     <button
                       key={t.id}
                       onClick={() => setSelectedTargetId(t.id)}
@@ -687,7 +1001,7 @@ export default function DigitalTwinTab() {
                           : 'bg-slate-800 border-slate-600 hover:scale-110 z-10'
                       }`}
                       style={{ left: `${t.coords2D.x}%`, top: `${t.coords2D.y}%` }}
-                      title={t.name}
+                      title={`${t.name} (${t.zoneName})`}
                     >
                       <MapPin className="w-3.5 h-3.5 text-white" />
                     </button>
@@ -701,14 +1015,16 @@ export default function DigitalTwinTab() {
           <div className="p-4 bg-slate-900/90 border-t border-slate-800 flex flex-wrap items-center justify-between text-xs text-slate-300 gap-4">
             <div className="flex items-center gap-4">
               <span className="font-bold text-slate-400">Selected Route:</span>
-              <span className="font-semibold text-white">{START_LOCATIONS.find(s => s.id === selectedStart)?.name.split(' - ')[0]} → {selectedTarget.name}</span>
+              <span className="font-semibold text-white">{START_LOCATIONS.find(s => s.id === selectedStart)?.name.split(' - ')[0]} → {selectedTarget?.name || 'Destination'}</span>
             </div>
 
-            <div className="flex items-center gap-6 font-mono text-[11px]">
-              <div>Distance: <span className="text-[#007BC4] font-bold">{selectedTarget.distanceMeters}m</span></div>
-              <div>ETA: <span className="text-emerald-400 font-bold">{selectedTarget.estTime}</span></div>
-              <div>Steps: <span className="text-slate-200 font-bold">{selectedTarget.steps.length} Waypoints</span></div>
-            </div>
+            {selectedTarget && (
+              <div className="flex items-center gap-6 font-mono text-[11px]">
+                <div>Distance: <span className="text-[#007BC4] font-bold">{selectedTarget.distanceMeters}m</span></div>
+                <div>ETA: <span className="text-emerald-400 font-bold">{selectedTarget.estTime}</span></div>
+                <div>Steps: <span className="text-slate-200 font-bold">{selectedTarget.steps.length} Waypoints</span></div>
+              </div>
+            )}
           </div>
         </div>
       </div>
