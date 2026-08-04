@@ -359,9 +359,10 @@ async function startServer() {
 
   app.post('/api/mongodb/config', async (req, res) => {
     try {
-      const { mongodbUri } = req.body;
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      const { mongodbUri } = body;
       if (!mongodbUri) {
-        return res.status(400).json({ error: 'Connection string is empty' });
+        return res.status(400).json({ success: false, error: 'Connection string is empty' });
       }
       const success = await initMongo(mongodbUri);
       if (success) {
@@ -372,26 +373,27 @@ async function startServer() {
         }
         res.json({ success: true, message: 'Connected to MongoDB successfully!' });
       } else {
-        res.status(400).json({ error: 'Connection failed. Please check your connection string, credentials, and network restrictions.' });
+        res.status(400).json({ success: false, error: lastMongoError || 'Connection failed. Please check connection string, credentials, and ensure 0.0.0.0/0 is allowed in MongoDB Atlas Network Access.' });
       }
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ success: false, error: err.message || 'Server error configuring MongoDB' });
     }
   });
 
   app.post('/api/mongodb/test-connection', async (req, res) => {
     try {
-      const { mongodbUri } = req.body;
+      const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+      const { mongodbUri } = body;
       if (!mongodbUri) {
         return res.json({ success: false, error: 'Connection string is empty' });
       }
-      const tempClient = new MongoClient(mongodbUri, { serverSelectionTimeoutMS: 5000 });
+      const tempClient = new MongoClient(mongodbUri, { serverSelectionTimeoutMS: 5000, connectTimeoutMS: 5000 });
       await tempClient.connect();
       await tempClient.db().admin().ping();
       await tempClient.close();
       res.json({ success: true });
     } catch (err: any) {
-      res.json({ success: false, error: err.message });
+      res.json({ success: false, error: err.message || 'Failed to connect to MongoDB cluster. Verify credentials and Atlas IP whitelist (0.0.0.0/0).' });
     }
   });
 
@@ -1114,6 +1116,17 @@ async function startServer() {
     ]);
   });
 
+
+  // Express Global Error Handler (Ensures API always returns JSON on errors)
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('Express server route error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: err?.message || 'A server error occurred'
+      });
+    }
+  });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

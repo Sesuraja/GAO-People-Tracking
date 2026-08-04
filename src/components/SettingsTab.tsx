@@ -647,7 +647,13 @@ export default function SettingsTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mongodbUri: mongoUri }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { success: false, error: res.ok ? text : `Server HTTP ${res.status}: ${text.slice(0, 150)}` };
+      }
       if (data.success) {
         setMongoTestResult({
           success: true,
@@ -656,7 +662,7 @@ export default function SettingsTab() {
       } else {
         setMongoTestResult({
           success: false,
-          msg: data.error || "Connection failed.",
+          msg: data.error || "Connection failed. Please check credentials & Atlas IP access rules.",
         });
       }
     } catch (e: any) {
@@ -691,7 +697,13 @@ export default function SettingsTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mongodbUri: mongoUri }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { success: false, error: res.ok ? text : `Server HTTP ${res.status}: ${text.slice(0, 150)}` };
+      }
       if (res.ok && data.success) {
         localStorage.setItem("gao_mongodb_uri", mongoUri);
         setMongoStatus({ connected: true, connectionString: mongoUri });
