@@ -288,7 +288,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
         {/* LOGO */}
         <div className="px-6 mb-8 flex flex-col">
           <div className="flex items-center gap-2">
-            <h1 className="text-4xl font-extrabold tracking-tight text-[#007BC4] leading-none">GAO</h1>
+            <h1 className="text-4xl font-extrabold tracking-tight text-[#007BC4] leading-none">Aperture</h1>
           </div>
           <span className="text-[10px] tracking-widest text-slate-500 dark:text-slate-400 font-semibold mt-1">People Tracking</span>
         </div>

@@ -321,7 +321,7 @@ export default function AIInsightsTab({ people = [] }: AIInsightsTabProps) {
           ) : (
             <>
               <Zap className="w-4 h-4 animate-pulse fill-white" />
-              Run GAO RFID Intelligence Analysis
+              Run Gemini RFID Intelligence Analysis
             </>
           )}
         </button>
